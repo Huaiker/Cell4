@@ -1,8 +1,6 @@
 <div align="center">
 
 # Cell⁴
-> 🌐 : [中文版](README_zh.md)
-
 
 **Infinite ME Storage Cells for Applied Energistics 2**
 

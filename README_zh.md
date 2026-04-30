@@ -1,8 +1,6 @@
 <div align="center">
 
 # Cell⁴
-> 🌐 : [English](README.md)
-
 
 **应用能源2 (AE2) 无限ME存储元件**
 

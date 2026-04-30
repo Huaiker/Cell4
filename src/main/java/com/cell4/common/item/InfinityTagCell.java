@@ -91,14 +91,7 @@ public class InfinityTagCell extends AEBaseItem implements ICellWorkbenchItem {
 
     @Override
     public @NotNull Component getName(@NotNull ItemStack is) {
-        List<String> tags = getTagNames(is);
-        if (tags.isEmpty()) {
-            return Component.translatable("item.cell4.infinity_tag_cell");
-        }
-        if (tags.size() == 1) {
-            return Component.translatable("item.cell4.infinity_tag_cell_name", tags.get(0));
-        }
-        return Component.translatable("item.cell4.infinity_tag_cell_name_multi", tags.size());
+        return Component.translatable("item.cell4.infinity_tag_cell");
     }
 
     @Override

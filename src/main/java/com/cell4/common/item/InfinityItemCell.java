@@ -148,14 +148,7 @@ public class InfinityItemCell extends AEBaseItem implements ICellWorkbenchItem {
 
     @Override
     public @NotNull Component getName(@NotNull ItemStack is) {
-        List<AEKey> records = getRecords(is);
-        if (records.isEmpty()) {
-            return Component.translatable("item.cell4.infinity_item_cell");
-        }
-        if (records.size() == 1) {
-            return Component.translatable("item.cell4.infinity_item_cell_name", records.get(0).getDisplayName());
-        }
-        return Component.translatable("item.cell4.infinity_item_cell_name_multi", records.size());
+        return Component.translatable("item.cell4.infinity_item_cell");
     }
 
     @Override
