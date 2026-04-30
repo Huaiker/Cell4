@@ -9,6 +9,7 @@ displayName="Cell\u2074 (Forge)"
 authors="Cell4"
 description='''
 An AE2 addon adding Infinity Cells that support filtering by item, tag, and mod ID.'''
+logoFile="cell4_logo.png"
 
 [[dependencies.cell4]]
 modId="forge"
