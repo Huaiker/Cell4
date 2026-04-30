@@ -98,13 +98,7 @@ public class InfinityModIdStorage implements StorageCell {
 
     @Override
     public Component getDescription() {
-        if (modIds.isEmpty()) {
-            return Component.translatable("item.cell4.infinity_modid_cell");
-        }
-        if (modIds.size() == 1) {
-            return Component.translatable("item.cell4.infinity_modid_cell_name", modIds.get(0));
-        }
-        return Component.translatable("item.cell4.infinity_modid_cell_name_multi", modIds.size());
+        return Component.translatable("item.cell4.infinity_modid_cell");
     }
 
     @Override

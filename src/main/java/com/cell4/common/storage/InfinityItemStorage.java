@@ -72,13 +72,7 @@ public class InfinityItemStorage implements StorageCell {
 
     @Override
     public Component getDescription() {
-        if (recordKeys.isEmpty()) {
-            return Component.translatable("item.cell4.infinity_item_cell");
-        }
-        if (recordKeys.size() == 1) {
-            return recordKeys.get(0).getDisplayName();
-        }
-        return Component.translatable("item.cell4.infinity_item_cell_name_multi", recordKeys.size());
+        return Component.translatable("item.cell4.infinity_item_cell");
     }
 
     @Override

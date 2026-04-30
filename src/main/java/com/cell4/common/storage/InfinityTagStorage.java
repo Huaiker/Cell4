@@ -99,13 +99,7 @@ public class InfinityTagStorage implements StorageCell {
 
     @Override
     public Component getDescription() {
-        if (tagNames.isEmpty()) {
-            return Component.translatable("item.cell4.infinity_tag_cell");
-        }
-        if (tagNames.size() == 1) {
-            return Component.translatable("item.cell4.infinity_tag_cell_name", tagNames.get(0));
-        }
-        return Component.translatable("item.cell4.infinity_tag_cell_name_multi", tagNames.size());
+        return Component.translatable("item.cell4.infinity_tag_cell");
     }
 
     @Override

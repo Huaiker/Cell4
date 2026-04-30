@@ -2,14 +2,8 @@
   "itemGroup.cell4": "Cell\u2074",
 
   "item.cell4.infinity_item_cell": "Infinity Item Cell",
-  "item.cell4.infinity_item_cell_name": "Infinity Item Cell: %s",
-  "item.cell4.infinity_item_cell_name_multi": "Infinity Item Cell: %s items",
   "item.cell4.infinity_tag_cell": "Infinity Tag Cell",
-  "item.cell4.infinity_tag_cell_name": "Infinity Tag Cell: %s",
-  "item.cell4.infinity_tag_cell_name_multi": "Infinity Tag Cell: %s tags",
   "item.cell4.infinity_modid_cell": "Infinity ModID Cell",
-  "item.cell4.infinity_modid_cell_name": "Infinity ModID Cell: %s",
-  "item.cell4.infinity_modid_cell_name_multi": "Infinity ModID Cell: %s mods",
 
   "tooltip.cell4.infinity": "\u221E Infinite",
   "tooltip.cell4.item_count": "%s items bound",

@@ -91,14 +91,7 @@ public class InfinityModIdCell extends AEBaseItem implements ICellWorkbenchItem 
 
     @Override
     public @NotNull Component getName(@NotNull ItemStack is) {
-        List<String> modIds = getModIds(is);
-        if (modIds.isEmpty()) {
-            return Component.translatable("item.cell4.infinity_modid_cell");
-        }
-        if (modIds.size() == 1) {
-            return Component.translatable("item.cell4.infinity_modid_cell_name", modIds.get(0));
-        }
-        return Component.translatable("item.cell4.infinity_modid_cell_name_multi", modIds.size());
+        return Component.translatable("item.cell4.infinity_modid_cell");
     }
 
     @Override
