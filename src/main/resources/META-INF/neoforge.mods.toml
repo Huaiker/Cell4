@@ -6,8 +6,9 @@ license="MIT"
 modId="cell4"
 version="${file.jarVersion}"
 displayName="Cell\u2074 (NeoForge)"
-authors="Cell4"
+authors="Huaiker"
 description='''An AE2 addon adding Infinity Cells that support filtering by item, tag, and mod ID.'''
+logoFile="cell4_logo.png"
 
 [[dependencies.cell4]]
 modId="neoforge"
