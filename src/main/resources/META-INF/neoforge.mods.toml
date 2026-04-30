@@ -1,0 +1,31 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="MIT"
+
+[[mods]]
+modId="cell4"
+version="${file.jarVersion}"
+displayName="Cell\u2074 (NeoForge)"
+authors="Cell4"
+description='''An AE2 addon adding Infinity Cells that support filtering by item, tag, and mod ID.'''
+
+[[dependencies.cell4]]
+modId="neoforge"
+mandatory=true
+versionRange="[21.1,)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.cell4]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.21.1,1.22)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.cell4]]
+modId="ae2"
+mandatory=true
+versionRange="[19.0.0,20.0.0)"
+ordering="AFTER"
+side="BOTH"

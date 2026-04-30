@@ -6,9 +6,9 @@
 
 *One cell. Infinite resources. Any filter you need.*
 
-[![Minecraft](https://img.shields.io/badge/Minecraft-1.20.1-green.svg)](https://www.minecraft.net/)
-[![Forge](https://img.shields.io/badge/Forge-47.1.0+-orange.svg)](https://files.minecraftforge.net/)
-[![AE2](https://img.shields.io/badge/AE2-15.x-blue.svg)](https://github.com/Applied-Energistics/Applied-Energistics-2)
+[![Minecraft](https://img.shields.io/badge/Minecraft-1.21.1-green.svg)](https://www.minecraft.net/)
+[![NeoForge](https://img.shields.io/badge/NeoForge-21.1.x-orange.svg)](https://neoforged.net/)
+[![AE2](https://img.shields.io/badge/AE2-19.x-blue.svg)](https://github.com/Applied-Energistics/Applied-Energistics-2)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 </div>
@@ -35,22 +35,22 @@ All cell types support **items, fluids, gases** and any other AE2 key type — a
 
 ## Usage
 
-All cells are configured via **NBT data** using `/give`. Both single-value and list formats are supported.
+All cells are configured via **custom data** using `/give`. Both single-value and list formats are supported.
 
 ### Single Value
 
 ```
-/give @p cell4:infinity_item_cell{cell4item:"minecraft:diamond"}
-/give @p cell4:infinity_tag_cell{cell4tag:"minecraft:logs"}
-/give @p cell4:infinity_modid_cell{cell4modid:"mekanism"}
+/give @p cell4:infinity_item_cell[custom_data={cell4item:"minecraft:diamond"}]
+/give @p cell4:infinity_tag_cell[custom_data={cell4tag:"minecraft:logs"}]
+/give @p cell4:infinity_modid_cell[custom_data={cell4modid:"mekanism"}]
 ```
 
 ### Multiple Values
 
 ```
-/give @p cell4:infinity_item_cell{cell4item:["minecraft:diamond","minecraft:oak_log","minecraft:water"]}
-/give @p cell4:infinity_tag_cell{cell4tag:["minecraft:logs","forge:ingots/iron","forge:ores/diamond"]}
-/give @p cell4:infinity_modid_cell{cell4modid:["mekanism","thermal","create"]}
+/give @p cell4:infinity_item_cell[custom_data={cell4item:["minecraft:diamond","minecraft:oak_log","minecraft:water"]}]
+/give @p cell4:infinity_tag_cell[custom_data={cell4tag:["minecraft:logs","c:ingots/iron","c:ores/diamond"]}]
+/give @p cell4:infinity_modid_cell[custom_data={cell4modid:["mekanism","thermal","create"]}]
 ```
 
 ### Blacklist
@@ -58,8 +58,8 @@ All cells are configured via **NBT data** using `/give`. Both single-value and l
 Use `cell4blacklist` to exclude specific items from any cell type. Blacklisted items will not be extracted or accepted.
 
 ```
-/give @p cell4:infinity_tag_cell{cell4tag:"minecraft:logs",cell4blacklist:"minecraft:birch_log"}
-/give @p cell4:infinity_modid_cell{cell4modid:"mekanism",cell4blacklist:["mekanism:steel_ingot","mekanism:osmium_ingot"]}
+/give @p cell4:infinity_tag_cell[custom_data={cell4tag:"minecraft:logs",cell4blacklist:"minecraft:birch_log"}]
+/give @p cell4:infinity_modid_cell[custom_data={cell4modid:"mekanism",cell4blacklist:["mekanism:steel_ingot","mekanism:osmium_ingot"]}]
 ```
 
 Blacklisted items are shown in the cell tooltip with a ✖ marker.
@@ -76,9 +76,9 @@ The output JAR will be in `build/libs/`.
 
 | Dependency | Version |
 |-----------|---------|
-| Minecraft | 1.20.1 |
-| Forge | 47.1.0+ |
-| Applied Energistics 2 | 15.0.0 - 15.x |
+| Minecraft | 1.21.1 |
+| NeoForge | 21.1.0+ |
+| Applied Energistics 2 | 19.0.0 - 19.x |
 
 ## Attribution
 

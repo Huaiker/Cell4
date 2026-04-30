@@ -9,16 +9,13 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
-import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.inventory.tooltip.TooltipComponent;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
-import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -26,7 +23,8 @@ import java.util.Optional;
 /**
  * Infinity Tag Cell - can infinitely extract any item/fluid matching specified tags.
  * <p>
- * Binding is done purely via NBT. Supports both single-value and list formats:
+ * Binding is done purely via NBT (stored in custom data component in 1.21.1).
+ * Supports both single-value and list formats:
  * /give @p cell4:infinity_tag_cell{cell4tag:"minecraft:logs"}
  * /give @p cell4:infinity_tag_cell{cell4tag:["minecraft:logs","forge:ingots/iron"]}
  * </p>
@@ -35,8 +33,8 @@ public class InfinityTagCell extends AEBaseItem implements ICellWorkbenchItem {
 
     private static final String NBT_KEY = "cell4tag";
 
-    public InfinityTagCell() {
-        super(new Item.Properties().stacksTo(1));
+    public InfinityTagCell(Properties properties) {
+        super(properties.stacksTo(1));
     }
 
     /**
@@ -45,44 +43,27 @@ public class InfinityTagCell extends AEBaseItem implements ICellWorkbenchItem {
      */
     @NotNull
     public static List<String> getTagNames(ItemStack stack) {
-        var tag = stack.getTag();
-        if (tag == null || !tag.contains(NBT_KEY)) {
+        CompoundTag tag = Cell4Util.getCustomTag(stack);
+        if (!tag.contains(NBT_KEY)) {
             return Collections.emptyList();
         }
-
-        // List format: {cell4tag:["minecraft:logs","forge:ingots"]}
-        if (tag.get(NBT_KEY) instanceof ListTag listTag) {
-            List<String> result = new ArrayList<>(listTag.size());
-            for (int i = 0; i < listTag.size(); i++) {
-                String str = listTag.getString(i);
-                if (!str.isEmpty()) {
-                    result.add(str);
-                }
-            }
-            return result;
-        }
-
-        // Legacy single string format: {cell4tag:"minecraft:logs"}
-        String single = tag.getString(NBT_KEY);
-        if (!single.isEmpty()) {
-            return Collections.singletonList(single);
-        }
-
-        return Collections.emptyList();
+        return Cell4Util.parseStringList(tag, NBT_KEY);
     }
 
     public static void setTagNames(ItemStack stack, List<String> tagNames) {
-        var tag = stack.getOrCreateTag();
+        CompoundTag tag = Cell4Util.getCustomTag(stack);
         ListTag listTag = new ListTag();
         for (String name : tagNames) {
             listTag.add(StringTag.valueOf(name));
         }
         tag.put(NBT_KEY, listTag);
+        Cell4Util.setCustomTag(stack, tag);
     }
 
     public static void setTagName(ItemStack stack, String tagName) {
-        var tag = stack.getOrCreateTag();
+        CompoundTag tag = Cell4Util.getCustomTag(stack);
         tag.putString(NBT_KEY, tagName);
+        Cell4Util.setCustomTag(stack, tag);
     }
 
     public static boolean hasTagNames(ItemStack stack) {
@@ -95,7 +76,7 @@ public class InfinityTagCell extends AEBaseItem implements ICellWorkbenchItem {
     }
 
     @Override
-    public void appendHoverText(@NotNull ItemStack is, Level world, @NotNull List<Component> lines, @NotNull TooltipFlag adv) {
+    public void appendHoverText(@NotNull ItemStack is, @NotNull Item.TooltipContext context, @NotNull List<Component> lines, @NotNull TooltipFlag adv) {
         lines.add(Component.translatable("tooltip.cell4.infinity").withStyle(ChatFormatting.GREEN));
         List<String> tags = getTagNames(is);
         for (String tag : tags) {

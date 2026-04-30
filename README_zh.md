@@ -6,9 +6,9 @@
 
 *一个元件, 无限资源, 随心筛选.*
 
-[![Minecraft](https://img.shields.io/badge/Minecraft-1.20.1-green.svg)](https://www.minecraft.net/)
-[![Forge](https://img.shields.io/badge/Forge-47.1.0+-orange.svg)](https://files.minecraftforge.net/)
-[![AE2](https://img.shields.io/badge/AE2-15.x-blue.svg)](https://github.com/Applied-Energistics/Applied-Energistics-2)
+[![Minecraft](https://img.shields.io/badge/Minecraft-1.21.1-green.svg)](https://www.minecraft.net/)
+[![NeoForge](https://img.shields.io/badge/NeoForge-21.1.x-orange.svg)](https://neoforged.net/)
+[![AE2](https://img.shields.io/badge/AE2-19.x-blue.svg)](https://github.com/Applied-Energistics/Applied-Energistics-2)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 </div>
@@ -35,22 +35,22 @@ Cell⁴是一个轻量级AE2附属模组, 为你的ME网络添加**无限元件*
 
 ## 用法
 
-所有元件通过**NBT数据**配置, 使用`/give`获取. 支持单值和列表两种格式.
+所有元件通过**自定义数据**配置, 使用`/give`获取. 支持单值和列表两种格式.
 
 ### 单值
 
 ```
-/give @p cell4:infinity_item_cell{cell4item:"minecraft:diamond"}
-/give @p cell4:infinity_tag_cell{cell4tag:"minecraft:logs"}
-/give @p cell4:infinity_modid_cell{cell4modid:"mekanism"}
+/give @p cell4:infinity_item_cell[custom_data={cell4item:"minecraft:diamond"}]
+/give @p cell4:infinity_tag_cell[custom_data={cell4tag:"minecraft:logs"}]
+/give @p cell4:infinity_modid_cell[custom_data={cell4modid:"mekanism"}]
 ```
 
 ### 多值
 
 ```
-/give @p cell4:infinity_item_cell{cell4item:["minecraft:diamond","minecraft:oak_log","minecraft:water"]}
-/give @p cell4:infinity_tag_cell{cell4tag:["minecraft:logs","forge:ingots/iron","forge:ores/diamond"]}
-/give @p cell4:infinity_modid_cell{cell4modid:["mekanism","thermal","create"]}
+/give @p cell4:infinity_item_cell[custom_data={cell4item:["minecraft:diamond","minecraft:oak_log","minecraft:water"]}]
+/give @p cell4:infinity_tag_cell[custom_data={cell4tag:["minecraft:logs","c:ingots/iron","c:ores/diamond"]}]
+/give @p cell4:infinity_modid_cell[custom_data={cell4modid:["mekanism","thermal","create"]}]
 ```
 
 ### 黑名单
@@ -58,8 +58,8 @@ Cell⁴是一个轻量级AE2附属模组, 为你的ME网络添加**无限元件*
 使用`cell4blacklist`排除特定物品, 被加入黑名单的物品不会被提取或接收.
 
 ```
-/give @p cell4:infinity_tag_cell{cell4tag:"minecraft:logs",cell4blacklist:"minecraft:birch_log"}
-/give @p cell4:infinity_modid_cell{cell4modid:"mekanism",cell4blacklist:["mekanism:steel_ingot","mekanism:osmium_ingot"]}
+/give @p cell4:infinity_tag_cell[custom_data={cell4tag:"minecraft:logs",cell4blacklist:"minecraft:birch_log"}]
+/give @p cell4:infinity_modid_cell[custom_data={cell4modid:"mekanism",cell4blacklist:["mekanism:steel_ingot","mekanism:osmium_ingot"]}]
 ```
 
 黑名单物品会在元件tooltip中以✖标记显示.
@@ -76,9 +76,9 @@ Cell⁴是一个轻量级AE2附属模组, 为你的ME网络添加**无限元件*
 
 | 依赖 | 版本 |
 |-----|------|
-| Minecraft | 1.20.1 |
-| Forge | 47.1.0+ |
-| Applied Energistics 2 | 15.0.0 - 15.x |
+| Minecraft | 1.21.1 |
+| NeoForge | 21.1.0+ |
+| Applied Energistics 2 | 19.0.0 - 19.x |
 
 ## 致谢
 

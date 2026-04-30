@@ -3,11 +3,13 @@ package com.cell4.common.util;
 import appeng.api.stacks.AEFluidKey;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.level.material.Fluids;
 
 import java.util.*;
@@ -15,18 +17,34 @@ import java.util.*;
 /**
  * Shared NBT utility for Cell⁴.
  * Provides parsing of the blacklist NBT key and string list format.
+ * In 1.21.1, item NBT is stored via DataComponents.CUSTOM_DATA.
  */
 public class Cell4Util {
 
     public static final String BLACKLIST_KEY = "cell4blacklist";
 
     /**
-     * Parse blacklist AEKeys from an ItemStack's NBT.
+     * Get the custom data CompoundTag from an ItemStack (1.21.1 data component system).
+     */
+    public static CompoundTag getCustomTag(ItemStack stack) {
+        CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
+        return customData != null ? customData.copyTag() : new CompoundTag();
+    }
+
+    /**
+     * Set the custom data CompoundTag on an ItemStack (1.21.1 data component system).
+     */
+    public static void setCustomTag(ItemStack stack, CompoundTag tag) {
+        stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
+    }
+
+    /**
+     * Parse blacklist AEKeys from an ItemStack's custom data.
      * The blacklist uses the same format as cell4item (single string or string list).
      */
     public static Set<AEKey> getBlacklistKeys(ItemStack stack) {
-        var tag = stack.getTag();
-        if (tag == null || !tag.contains(BLACKLIST_KEY)) {
+        CompoundTag tag = getCustomTag(stack);
+        if (!tag.contains(BLACKLIST_KEY)) {
             return Collections.emptySet();
         }
 
@@ -54,11 +72,11 @@ public class Cell4Util {
     }
 
     /**
-     * Get blacklist identifier strings from an ItemStack's NBT.
+     * Get blacklist identifier strings from an ItemStack's custom data.
      */
     public static List<String> getBlacklistIds(ItemStack stack) {
-        var tag = stack.getTag();
-        if (tag == null || !tag.contains(BLACKLIST_KEY)) {
+        CompoundTag tag = getCustomTag(stack);
+        if (!tag.contains(BLACKLIST_KEY)) {
             return Collections.emptyList();
         }
         return parseStringList(tag, BLACKLIST_KEY);

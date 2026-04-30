@@ -10,6 +10,7 @@ import appeng.api.storage.cells.StorageCell;
 import appeng.api.storage.cells.CellState;
 import com.cell4.common.item.InfinityTagCell;
 import com.cell4.common.util.Cell4Util;
+import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -77,7 +78,7 @@ public class InfinityTagStorage implements StorageCell {
 
             // Add all items matching the tag, excluding blacklisted
             TagKey<net.minecraft.world.item.Item> itemTag = TagKey.create(BuiltInRegistries.ITEM.key(), tagRL);
-            for (var holder : BuiltInRegistries.ITEM.getTagOrEmpty(itemTag)) {
+            for (Holder<net.minecraft.world.item.Item> holder : BuiltInRegistries.ITEM.getTagOrEmpty(itemTag)) {
                 var key = AEItemKey.of(holder.value());
                 if (key != null && !blacklist.contains(key)) {
                     out.add(key, Integer.MAX_VALUE);
@@ -86,7 +87,7 @@ public class InfinityTagStorage implements StorageCell {
 
             // Add all fluids matching the tag, excluding blacklisted
             TagKey<Fluid> fluidTag = TagKey.create(BuiltInRegistries.FLUID.key(), tagRL);
-            for (var holder : BuiltInRegistries.FLUID.getTagOrEmpty(fluidTag)) {
+            for (Holder<Fluid> holder : BuiltInRegistries.FLUID.getTagOrEmpty(fluidTag)) {
                 Fluid fluid = holder.value();
                 if (fluid == Fluids.EMPTY) continue;
                 var key = AEFluidKey.of(fluid);
