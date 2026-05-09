@@ -28,7 +28,7 @@ Cell⁴ is a lightweight AE2 addon that adds **Infinity Cells** to your ME netwo
 | Cell | NBT Key | Description |
 |------|---------|-------------|
 | **Infinity Item Cell** | `cell4item` | Bind specific items or fluids |
-| **Infinity Tag Cell** | `cell4tag` | Bind all items matching a tag |
+| **Infinity Tag Cell** | `cell4tag` + `cell4modid` | Bind all items matching tags and/or from specified mods |
 | **Infinity ModID Cell** | `cell4modid` | Bind all items from a mod |
 
 All cell types support **items, fluids, gases** and any other AE2 key type — all in a single cell, no separate variants needed.
@@ -53,14 +53,33 @@ All cells are configured via **custom data** using `/give`. Both single-value an
 /give @p cell4:infinity_modid_cell[custom_data={cell4modid:["mekanism","thermal","create"]}]
 ```
 
+### Tag Cell with Mod ID Filter
+
+The Infinity Tag Cell supports both tag and mod ID filters simultaneously, allowing you to combine tag-based and mod-based filtering in a single cell:
+
+```
+/give @p cell4:infinity_tag_cell[custom_data={cell4tag:"minecraft:logs",cell4modid:"mekanism"}]
+/give @p cell4:infinity_tag_cell[custom_data={cell4tag:["minecraft:logs","c:ingots/iron"],cell4modid:["mekanism","thermal"]}]
+```
+
 ### Blacklist
 
-Use `cell4blacklist` to exclude specific items from any cell type. Blacklisted items will not be extracted or accepted.
+Use `cell4blacklist` to exclude items from any cell type. Blacklist entries support three types:
+- **Item** — plain identifier (e.g. `minecraft:birch_log`)
+- **Tag** — prefixed with `#` (e.g. `#minecraft:birch_logs`)
+- **Mod ID** — prefixed with `@` (e.g. `@mekanism`)
+
+Blacklisted items will not be extracted or accepted.
 
 ```
 /give @p cell4:infinity_tag_cell[custom_data={cell4tag:"minecraft:logs",cell4blacklist:"minecraft:birch_log"}]
-/give @p cell4:infinity_modid_cell[custom_data={cell4modid:"mekanism",cell4blacklist:["mekanism:steel_ingot","mekanism:osmium_ingot"]}]
+/give @p cell4:infinity_modid_cell[custom_data={cell4modid:"mekanism",cell4blacklist:["mekanism:steel_ingot","#forge:ingots/steel","@thermal"]}]
 ```
+
+The second example excludes from the Mekanism cell:
+- The specific item `mekanism:steel_ingot`
+- Any item matching the tag `forge:ingots/steel`
+- Any item from the mod `thermal`
 
 Blacklisted items are shown in the cell tooltip with a ✖ marker.
 

@@ -19,25 +19,23 @@ import java.util.stream.Collectors;
  * StorageCell implementation for the Infinity Item Cell.
  * Provides infinite extraction of specific AEKeys (items, fluids, etc.).
  * Insertion of matching keys is accepted but items are silently discarded (phantom storage).
- * Supports blacklist via cell4blacklist NBT key.
+ * Supports blacklist via cell4blacklist NBT key (items, tags, and mod IDs).
  */
 public class InfinityItemStorage implements StorageCell {
 
     private final List<AEKey> recordKeys;
     private final Set<AEKey> recordKeySet;
-    private final Set<AEKey> blacklist;
+    private final Cell4Util.BlacklistData blacklist;
 
     public InfinityItemStorage(ItemStack cellItem) {
         this.recordKeys = InfinityItemCell.getRecords(cellItem);
         this.recordKeySet = recordKeys.stream().collect(Collectors.toSet());
-        this.blacklist = Cell4Util.getBlacklistKeys(cellItem);
+        this.blacklist = Cell4Util.getBlacklistData(cellItem);
     }
 
     @Override
     public long insert(AEKey what, long amount, Actionable mode, IActionSource source) {
-        // Accept matching keys but silently discard them (phantom storage sink)
-        // Exclude blacklisted keys
-        if (recordKeySet.contains(what) && !blacklist.contains(what)) {
+        if (recordKeySet.contains(what) && !blacklist.isBlacklisted(what)) {
             return amount;
         }
         return 0;
@@ -45,16 +43,12 @@ public class InfinityItemStorage implements StorageCell {
 
     @Override
     public boolean isPreferredStorageFor(AEKey what, IActionSource source) {
-        // Tell AE2 to route matching items to this cell first
-        // Exclude blacklisted keys
-        return recordKeySet.contains(what) && !blacklist.contains(what);
+        return recordKeySet.contains(what) && !blacklist.isBlacklisted(what);
     }
 
     @Override
     public long extract(AEKey what, long amount, Actionable mode, IActionSource source) {
-        // Allow infinite extraction of the recorded keys only
-        // Exclude blacklisted keys
-        if (recordKeySet.contains(what) && !blacklist.contains(what)) {
+        if (recordKeySet.contains(what) && !blacklist.isBlacklisted(what)) {
             return amount;
         }
         return 0;
@@ -62,9 +56,8 @@ public class InfinityItemStorage implements StorageCell {
 
     @Override
     public void getAvailableStacks(KeyCounter out) {
-        // Show all recorded keys with infinite amounts, excluding blacklisted
         for (AEKey key : recordKeys) {
-            if (!blacklist.contains(key)) {
+            if (!blacklist.isBlacklisted(key)) {
                 out.add(key, InfinityItemCell.getAsIntMax(key));
             }
         }

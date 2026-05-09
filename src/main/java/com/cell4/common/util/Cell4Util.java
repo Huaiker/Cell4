@@ -8,8 +8,10 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
+import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
 
 import java.util.*;
@@ -18,10 +20,82 @@ import java.util.*;
  * Shared NBT utility for Cell⁴.
  * Provides parsing of the blacklist NBT key and string list format.
  * In 1.21.1, item NBT is stored via DataComponents.CUSTOM_DATA.
+ * Blacklist entries support three types:
+ * - Plain identifier (e.g. "minecraft:diamond") → item/fluid blacklist
+ * - "#" prefix (e.g. "#minecraft:logs") → tag blacklist
+ * - "@" prefix (e.g. "@mekanism") → mod ID blacklist
  */
 public class Cell4Util {
 
     public static final String BLACKLIST_KEY = "cell4blacklist";
+
+    /**
+     * Parsed blacklist data containing item keys, tag names, and mod IDs.
+     */
+    public static class BlacklistData {
+        private final Set<AEKey> itemKeys;
+        private final List<String> tagNames;
+        private final Set<String> modIds;
+
+        public BlacklistData(Set<AEKey> itemKeys, List<String> tagNames, Set<String> modIds) {
+            this.itemKeys = itemKeys;
+            this.tagNames = tagNames;
+            this.modIds = modIds;
+        }
+
+        public Set<AEKey> getItemKeys() {
+            return itemKeys;
+        }
+
+        public List<String> getTagNames() {
+            return tagNames;
+        }
+
+        public Set<String> getModIds() {
+            return modIds;
+        }
+
+        /**
+         * Check if a given AEKey is blacklisted by any of the three criteria.
+         */
+        public boolean isBlacklisted(AEKey key) {
+            // Check direct item/fluid key
+            if (itemKeys.contains(key)) return true;
+            // Check tag-based blacklist
+            for (String tagName : tagNames) {
+                if (matchesTagBlacklist(key, tagName)) return true;
+            }
+            // Check mod ID-based blacklist
+            if (key instanceof AEItemKey itemKey) {
+                ResourceLocation rl = BuiltInRegistries.ITEM.getKey(itemKey.getItem());
+                if (rl != null && modIds.contains(rl.getNamespace())) return true;
+            } else if (key instanceof AEFluidKey fluidKey) {
+                ResourceLocation rl = BuiltInRegistries.FLUID.getKey(fluidKey.getFluid());
+                if (rl != null && modIds.contains(rl.getNamespace())) return true;
+            }
+            return false;
+        }
+
+        public boolean isEmpty() {
+            return itemKeys.isEmpty() && tagNames.isEmpty() && modIds.isEmpty();
+        }
+
+        private static boolean matchesTagBlacklist(AEKey key, String tagName) {
+            ResourceLocation tagRL = ResourceLocation.tryParse(tagName);
+            if (tagRL == null) return false;
+
+            if (key instanceof AEItemKey itemKey) {
+                TagKey<net.minecraft.world.item.Item> itemTag = TagKey.create(
+                        BuiltInRegistries.ITEM.key(), tagRL);
+                return itemKey.getItem().builtInRegistryHolder().is(itemTag);
+            } else if (key instanceof AEFluidKey fluidKey) {
+                TagKey<Fluid> fluidTag = TagKey.create(
+                        BuiltInRegistries.FLUID.key(), tagRL);
+                return fluidKey.getFluid().builtInRegistryHolder().is(fluidTag);
+            }
+            return false;
+        }
+    }
 
     /**
      * Get the custom data CompoundTag from an ItemStack (1.21.1 data component system).
@@ -39,36 +113,65 @@ public class Cell4Util {
     }
 
     /**
-     * Parse blacklist AEKeys from an ItemStack's custom data.
-     * The blacklist uses the same format as cell4item (single string or string list).
+     * Parse blacklist data from an ItemStack's custom data.
+     * Supports three types of entries:
+     * - Plain identifier → item/fluid
+     * - "#" prefix → tag
+     * - "@" prefix → mod ID
      */
-    public static Set<AEKey> getBlacklistKeys(ItemStack stack) {
+    public static BlacklistData getBlacklistData(ItemStack stack) {
         CompoundTag tag = getCustomTag(stack);
         if (!tag.contains(BLACKLIST_KEY)) {
-            return Collections.emptySet();
+            return new BlacklistData(Collections.emptySet(), Collections.emptyList(), Collections.emptySet());
         }
 
         List<String> ids = parseStringList(tag, BLACKLIST_KEY);
         if (ids.isEmpty()) {
-            return Collections.emptySet();
+            return new BlacklistData(Collections.emptySet(), Collections.emptyList(), Collections.emptySet());
         }
 
-        Set<AEKey> keys = new HashSet<>();
+        Set<AEKey> itemKeys = new HashSet<>();
+        List<String> tagNames = new ArrayList<>();
+        Set<String> modIds = new HashSet<>();
+
         for (String id : ids) {
-            ResourceLocation rl = ResourceLocation.tryParse(id);
-            if (rl != null) {
-                var item = BuiltInRegistries.ITEM.getOptional(rl);
-                if (item.isPresent()) {
-                    keys.add(AEItemKey.of(item.get()));
-                    continue;
+            if (id.startsWith("#")) {
+                // Tag entry: "#minecraft:logs" → "minecraft:logs"
+                String tagName = id.substring(1);
+                if (!tagName.isEmpty()) {
+                    tagNames.add(tagName);
                 }
-                var fluid = BuiltInRegistries.FLUID.getOptional(rl);
-                if (fluid.isPresent() && fluid.get() != Fluids.EMPTY) {
-                    keys.add(AEFluidKey.of(fluid.get()));
+            } else if (id.startsWith("@")) {
+                // Mod ID entry: "@mekanism" → "mekanism"
+                String modId = id.substring(1);
+                if (!modId.isEmpty()) {
+                    modIds.add(modId);
+                }
+            } else {
+                // Item/fluid entry: "minecraft:diamond"
+                ResourceLocation rl = ResourceLocation.tryParse(id);
+                if (rl != null) {
+                    var item = BuiltInRegistries.ITEM.getOptional(rl);
+                    if (item.isPresent()) {
+                        itemKeys.add(AEItemKey.of(item.get()));
+                        continue;
+                    }
+                    var fluid = BuiltInRegistries.FLUID.getOptional(rl);
+                    if (fluid.isPresent() && fluid.get() != Fluids.EMPTY) {
+                        itemKeys.add(AEFluidKey.of(fluid.get()));
+                    }
                 }
             }
         }
-        return keys;
+
+        return new BlacklistData(itemKeys, tagNames, modIds);
+    }
+
+    /**
+     * Parse blacklist AEKeys from an ItemStack's custom data (legacy - items only).
+     */
+    public static Set<AEKey> getBlacklistKeys(ItemStack stack) {
+        return getBlacklistData(stack).getItemKeys();
     }
 
     /**
