@@ -9,5 +9,7 @@
   "tooltip.cell4.item_count": "%s items bound",
   "tooltip.cell4.tag_filter": "Tag: %s",
   "tooltip.cell4.modid_filter": "Mod ID: %s",
-  "tooltip.cell4.blacklist_item": "\u2716 %s"
+  "tooltip.cell4.blacklist_item": "\u2716 %s",
+  "tooltip.cell4.blacklist_tag": "\u2716 Tag: %s",
+  "tooltip.cell4.blacklist_modid": "\u2716 Mod: %s"
 }

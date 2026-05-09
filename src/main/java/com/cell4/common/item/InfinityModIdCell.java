@@ -101,8 +101,14 @@ public class InfinityModIdCell extends AEBaseItem implements ICellWorkbenchItem 
         for (String id : modIds) {
             lines.add(Component.translatable("tooltip.cell4.modid_filter", id).withStyle(ChatFormatting.LIGHT_PURPLE));
         }
-        for (AEKey key : Cell4Util.getBlacklistKeys(is)) {
+        for (AEKey key : Cell4Util.getBlacklistData(is).getItemKeys()) {
             lines.add(Component.translatable("tooltip.cell4.blacklist_item", key.getDisplayName()).withStyle(ChatFormatting.RED));
+        }
+        for (String tagName : Cell4Util.getBlacklistData(is).getTagNames()) {
+            lines.add(Component.translatable("tooltip.cell4.blacklist_tag", tagName).withStyle(ChatFormatting.RED));
+        }
+        for (String modId : Cell4Util.getBlacklistData(is).getModIds()) {
+            lines.add(Component.translatable("tooltip.cell4.blacklist_modid", modId).withStyle(ChatFormatting.RED));
         }
     }
 

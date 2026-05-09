@@ -24,18 +24,18 @@ import java.util.Set;
  * StorageCell implementation for the Infinity ModID Cell.
  * Provides infinite extraction of any item/fluid from specified mods (namespaces).
  * Insertion of matching keys is accepted but items are silently discarded (phantom storage).
- * Supports blacklist via cell4blacklist NBT key.
+ * Supports blacklist via cell4blacklist NBT key (items, tags, and mod IDs).
  */
 public class InfinityModIdStorage implements StorageCell {
 
     private final List<String> modIds;
     private final Set<String> modIdSet;
-    private final Set<AEKey> blacklist;
+    private final Cell4Util.BlacklistData blacklist;
 
     public InfinityModIdStorage(ItemStack cellItem) {
         this.modIds = InfinityModIdCell.getModIds(cellItem);
         this.modIdSet = Set.copyOf(modIds);
-        this.blacklist = Cell4Util.getBlacklistKeys(cellItem);
+        this.blacklist = Cell4Util.getBlacklistData(cellItem);
     }
 
     @Override
@@ -43,7 +43,7 @@ public class InfinityModIdStorage implements StorageCell {
         if (modIds.isEmpty()) {
             return 0;
         }
-        if (matchesAnyModId(what) && !blacklist.contains(what)) {
+        if (matchesAnyModId(what) && !blacklist.isBlacklisted(what)) {
             return amount;
         }
         return 0;
@@ -52,7 +52,7 @@ public class InfinityModIdStorage implements StorageCell {
     @Override
     public boolean isPreferredStorageFor(AEKey what, IActionSource source) {
         if (modIds.isEmpty()) return false;
-        return matchesAnyModId(what) && !blacklist.contains(what);
+        return matchesAnyModId(what) && !blacklist.isBlacklisted(what);
     }
 
     @Override
@@ -60,7 +60,7 @@ public class InfinityModIdStorage implements StorageCell {
         if (modIds.isEmpty()) {
             return 0;
         }
-        if (matchesAnyModId(what) && !blacklist.contains(what)) {
+        if (matchesAnyModId(what) && !blacklist.isBlacklisted(what)) {
             return amount;
         }
         return 0;
@@ -77,7 +77,7 @@ public class InfinityModIdStorage implements StorageCell {
             ResourceLocation rl = BuiltInRegistries.ITEM.getKey(item);
             if (rl != null && modIdSet.contains(rl.getNamespace())) {
                 var key = AEItemKey.of(item);
-                if (key != null && !blacklist.contains(key)) {
+                if (key != null && !blacklist.isBlacklisted(key)) {
                     out.add(key, Integer.MAX_VALUE);
                 }
             }
@@ -89,7 +89,7 @@ public class InfinityModIdStorage implements StorageCell {
             ResourceLocation rl = BuiltInRegistries.FLUID.getKey(fluid);
             if (rl != null && modIdSet.contains(rl.getNamespace())) {
                 var key = AEFluidKey.of(fluid);
-                if (key != null && !blacklist.contains(key)) {
+                if (key != null && !blacklist.isBlacklisted(key)) {
                     out.add(key, (long) Integer.MAX_VALUE * AEFluidKey.AMOUNT_BUCKET);
                 }
             }
@@ -118,7 +118,6 @@ public class InfinityModIdStorage implements StorageCell {
 
     /**
      * Check if a given AEKey belongs to any of the configured mod IDs.
-     * Supports both AEItemKey and AEFluidKey.
      */
     private boolean matchesAnyModId(AEKey key) {
         if (key instanceof AEItemKey itemKey) {

@@ -158,8 +158,15 @@ public class InfinityItemCell extends AEBaseItem implements ICellWorkbenchItem {
         if (ids.size() > 1) {
             lines.add(Component.translatable("tooltip.cell4.item_count", ids.size()).withStyle(ChatFormatting.AQUA));
         }
-        for (AEKey key : Cell4Util.getBlacklistKeys(is)) {
+        Cell4Util.BlacklistData blacklist = Cell4Util.getBlacklistData(is);
+        for (AEKey key : blacklist.getItemKeys()) {
             lines.add(Component.translatable("tooltip.cell4.blacklist_item", key.getDisplayName()).withStyle(ChatFormatting.RED));
+        }
+        for (String tagName : blacklist.getTagNames()) {
+            lines.add(Component.translatable("tooltip.cell4.blacklist_tag", tagName).withStyle(ChatFormatting.RED));
+        }
+        for (String modId : blacklist.getModIds()) {
+            lines.add(Component.translatable("tooltip.cell4.blacklist_modid", modId).withStyle(ChatFormatting.RED));
         }
     }
 
@@ -167,13 +174,13 @@ public class InfinityItemCell extends AEBaseItem implements ICellWorkbenchItem {
     @Override
     public Optional<TooltipComponent> getTooltipImage(@NotNull ItemStack stack) {
         List<AEKey> records = getRecords(stack);
-        Set<AEKey> blacklistKeys = Cell4Util.getBlacklistKeys(stack);
+        Cell4Util.BlacklistData blacklist = Cell4Util.getBlacklistData(stack);
         if (records.isEmpty()) {
             return Optional.empty();
         }
         List<GenericStack> content = new ArrayList<>(records.size());
         for (AEKey key : records) {
-            if (!blacklistKeys.contains(key)) {
+            if (!blacklist.isBlacklisted(key)) {
                 content.add(new GenericStack(key, getAsIntMax(key)));
             }
         }
