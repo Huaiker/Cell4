@@ -19,14 +19,19 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 /**
  * StorageCell implementation for the Infinity Tag Cell.
- * Provides infinite extraction of any item/fluid matching specified tags
- * or from specified mods.
+ * Provides infinite extraction of any item/fluid matching specified tags,
+ * optionally filtered by specified mod IDs.
+ * <p>
+ * Matching logic:
+ * - Only tags → match any item with any of the tags
+ * - Only mod IDs → no effect (cell is empty)
+ * - Both tags AND mod IDs → match items that belong to any of the mods AND match any of the tags
+ * </p>
  * Insertion of matching keys is accepted but items are silently discarded (phantom storage).
  * Supports blacklist via cell4blacklist NBT key (items, tags, and mod IDs).
  */
@@ -35,21 +40,25 @@ public class InfinityTagStorage implements StorageCell {
     private final List<String> tagNames;
     private final List<String> modIds;
     private final Set<String> modIdSet;
+    private final boolean hasTags;
+    private final boolean hasModIds;
     private final Cell4Util.BlacklistData blacklist;
 
     public InfinityTagStorage(ItemStack cellItem) {
         this.tagNames = InfinityTagCell.getTagNames(cellItem);
         this.modIds = InfinityTagCell.getModIds(cellItem);
         this.modIdSet = Set.copyOf(modIds);
+        this.hasTags = !tagNames.isEmpty();
+        this.hasModIds = !modIds.isEmpty();
         this.blacklist = Cell4Util.getBlacklistData(cellItem);
     }
 
     @Override
     public long insert(AEKey what, long amount, Actionable mode, IActionSource source) {
-        if (tagNames.isEmpty() && modIds.isEmpty()) {
+        if (!hasTags) {
             return 0;
         }
-        if (matchesAnyFilter(what) && !blacklist.isBlacklisted(what)) {
+        if (matchesFilter(what) && !blacklist.isBlacklisted(what)) {
             return amount;
         }
         return 0;
@@ -57,16 +66,16 @@ public class InfinityTagStorage implements StorageCell {
 
     @Override
     public boolean isPreferredStorageFor(AEKey what, IActionSource source) {
-        if (tagNames.isEmpty() && modIds.isEmpty()) return false;
-        return matchesAnyFilter(what) && !blacklist.isBlacklisted(what);
+        if (!hasTags) return false;
+        return matchesFilter(what) && !blacklist.isBlacklisted(what);
     }
 
     @Override
     public long extract(AEKey what, long amount, Actionable mode, IActionSource source) {
-        if (tagNames.isEmpty() && modIds.isEmpty()) {
+        if (!hasTags) {
             return 0;
         }
-        if (matchesAnyFilter(what) && !blacklist.isBlacklisted(what)) {
+        if (matchesFilter(what) && !blacklist.isBlacklisted(what)) {
             return amount;
         }
         return 0;
@@ -74,13 +83,10 @@ public class InfinityTagStorage implements StorageCell {
 
     @Override
     public void getAvailableStacks(KeyCounter out) {
-        if (tagNames.isEmpty() && modIds.isEmpty()) {
+        if (!hasTags) {
             return;
         }
 
-        Set<AEKey> addedKeys = new HashSet<>();
-
-        // Add all items matching the tags, excluding blacklisted
         for (String tagName : tagNames) {
             ResourceLocation tagRL = ResourceLocation.tryParse(tagName);
             if (tagRL == null) continue;
@@ -88,9 +94,10 @@ public class InfinityTagStorage implements StorageCell {
             TagKey<net.minecraft.world.item.Item> itemTag = TagKey.create(BuiltInRegistries.ITEM.key(), tagRL);
             for (Holder<net.minecraft.world.item.Item> holder : BuiltInRegistries.ITEM.getTagOrEmpty(itemTag)) {
                 var key = AEItemKey.of(holder.value());
-                if (key != null && !blacklist.isBlacklisted(key) && addedKeys.add(key)) {
-                    out.add(key, Integer.MAX_VALUE);
-                }
+                if (key == null || blacklist.isBlacklisted(key)) continue;
+                // If mod IDs specified, only include items from those mods
+                if (hasModIds && !belongsToMod(key, modIdSet)) continue;
+                out.add(key, Integer.MAX_VALUE);
             }
 
             TagKey<Fluid> fluidTag = TagKey.create(BuiltInRegistries.FLUID.key(), tagRL);
@@ -98,33 +105,9 @@ public class InfinityTagStorage implements StorageCell {
                 Fluid fluid = holder.value();
                 if (fluid == Fluids.EMPTY) continue;
                 var key = AEFluidKey.of(fluid);
-                if (key != null && !blacklist.isBlacklisted(key) && addedKeys.add(key)) {
-                    out.add(key, (long) Integer.MAX_VALUE * AEFluidKey.AMOUNT_BUCKET);
-                }
-            }
-        }
-
-        // Add all items/fluids from the specified mods, excluding blacklisted
-        if (!modIds.isEmpty()) {
-            for (var item : BuiltInRegistries.ITEM) {
-                ResourceLocation rl = BuiltInRegistries.ITEM.getKey(item);
-                if (rl != null && modIdSet.contains(rl.getNamespace())) {
-                    var key = AEItemKey.of(item);
-                    if (key != null && !blacklist.isBlacklisted(key) && addedKeys.add(key)) {
-                        out.add(key, Integer.MAX_VALUE);
-                    }
-                }
-            }
-
-            for (var fluid : BuiltInRegistries.FLUID) {
-                if (fluid == Fluids.EMPTY) continue;
-                ResourceLocation rl = BuiltInRegistries.FLUID.getKey(fluid);
-                if (rl != null && modIdSet.contains(rl.getNamespace())) {
-                    var key = AEFluidKey.of(fluid);
-                    if (key != null && !blacklist.isBlacklisted(key) && addedKeys.add(key)) {
-                        out.add(key, (long) Integer.MAX_VALUE * AEFluidKey.AMOUNT_BUCKET);
-                    }
-                }
+                if (key == null || blacklist.isBlacklisted(key)) continue;
+                if (hasModIds && !belongsToMod(key, modIdSet)) continue;
+                out.add(key, (long) Integer.MAX_VALUE * AEFluidKey.AMOUNT_BUCKET);
             }
         }
     }
@@ -136,7 +119,7 @@ public class InfinityTagStorage implements StorageCell {
 
     @Override
     public CellState getStatus() {
-        return (tagNames.isEmpty() && modIds.isEmpty()) ? CellState.EMPTY : CellState.NOT_EMPTY;
+        return hasTags ? CellState.NOT_EMPTY : CellState.EMPTY;
     }
 
     @Override
@@ -150,18 +133,27 @@ public class InfinityTagStorage implements StorageCell {
     }
 
     /**
-     * Check if a given AEKey matches any of the configured filters (tags or mod IDs).
+     * Check if a given AEKey matches the filter.
+     * - Only tags → matches any tag
+     * - Both tags and mod IDs → must match any tag AND belong to any mod
+     * - Only mod IDs → no effect (never called, hasTags is checked first)
      */
-    private boolean matchesAnyFilter(AEKey key) {
-        // Check tag filters
+    private boolean matchesFilter(AEKey key) {
+        boolean tagMatch = matchesAnyTag(key);
+        if (!hasModIds) {
+            return tagMatch;
+        }
+        return tagMatch && belongsToMod(key, modIdSet);
+    }
+
+    /**
+     * Check if a given AEKey matches any of the configured tags.
+     */
+    private boolean matchesAnyTag(AEKey key) {
         for (String tagName : tagNames) {
             if (matchesTag(key, tagName)) {
                 return true;
             }
-        }
-        // Check mod ID filters
-        if (matchesAnyModId(key)) {
-            return true;
         }
         return false;
     }
@@ -187,11 +179,9 @@ public class InfinityTagStorage implements StorageCell {
     }
 
     /**
-     * Check if a given AEKey belongs to any of the configured mod IDs.
+     * Check if a given AEKey belongs to any of the specified mod IDs.
      */
-    private boolean matchesAnyModId(AEKey key) {
-        if (modIdSet.isEmpty()) return false;
-
+    private static boolean belongsToMod(AEKey key, Set<String> modIdSet) {
         if (key instanceof AEItemKey itemKey) {
             ResourceLocation rl = BuiltInRegistries.ITEM.getKey(itemKey.getItem());
             return rl != null && modIdSet.contains(rl.getNamespace());

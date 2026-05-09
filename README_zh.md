@@ -55,12 +55,17 @@ Cell⁴是一个轻量级AE2附属模组, 为你的ME网络添加**无限元件*
 
 ### 标签元件搭配模组过滤
 
-无限标签元件同时支持标签和模组ID过滤, 允许在单个元件中组合基于标签和基于模组的筛选:
+无限标签元件支持可选的`cell4modid`过滤, 与`cell4tag`配合使用. 指定`cell4modid`时, 只展示**同时匹配标签且属于该模组**的物品. 注意: 单独指定`cell4modid`不生效, 必须有`cell4tag`.
 
 ```
-/give @p cell4:infinity_tag_cell[custom_data={cell4tag:"minecraft:logs",cell4modid:"mekanism"}]
+/give @p cell4:infinity_tag_cell[custom_data={cell4tag:"minecraft:logs",cell4modid:"minecraft"}]
+```
+这只展示原版原木, 排除其他模组添加的原木.
+
+```
 /give @p cell4:infinity_tag_cell[custom_data={cell4tag:["minecraft:logs","c:ingots/iron"],cell4modid:["mekanism","thermal"]}]
 ```
+这展示来自Mekanism或Thermal且匹配指定标签的物品.
 
 ### 黑名单
 
