@@ -55,12 +55,17 @@ All cells are configured via **NBT data** using `/give`. Both single-value and l
 
 ### Tag Cell with Mod ID Filter
 
-The Infinity Tag Cell supports both tag and mod ID filters simultaneously, allowing you to combine tag-based and mod-based filtering in a single cell:
+The Infinity Tag Cell supports an optional `cell4modid` filter alongside `cell4tag`. When `cell4modid` is specified, only items that **match the tag AND belong to the specified mod** are included. Note: `cell4modid` alone has no effect — `cell4tag` is required.
 
 ```
-/give @p cell4:infinity_tag_cell{cell4tag:"minecraft:logs",cell4modid:"mekanism"}
+/give @p cell4:infinity_tag_cell{cell4tag:"minecraft:logs",cell4modid:"minecraft"}
+```
+This shows only vanilla logs, excluding logs from other mods.
+
+```
 /give @p cell4:infinity_tag_cell{cell4tag:["minecraft:logs","forge:ingots/iron"],cell4modid:["mekanism","thermal"]}
 ```
+This shows items from Mekanism or Thermal that match any of the specified tags.
 
 ### Blacklist
 
