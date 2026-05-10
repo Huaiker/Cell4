@@ -1,6 +1,7 @@
 package com.cell4.common.registration;
 
 import com.cell4.Cell4;
+import com.cell4.common.item.CellConfigurator;
 import com.cell4.common.item.InfinityItemCell;
 import com.cell4.common.item.InfinityModIdCell;
 import com.cell4.common.item.InfinityTagCell;
@@ -21,4 +22,7 @@ public class Cell4Items {
 
     public static final DeferredHolder<Item, InfinityModIdCell> INFINITY_MODID_CELL =
             ITEMS.register("infinity_modid_cell", () -> new InfinityModIdCell(new Item.Properties()));
+
+    public static final DeferredHolder<Item, CellConfigurator> CELL_CONFIGURATOR =
+            ITEMS.register("cell_configurator", () -> new CellConfigurator(new Item.Properties()));
 }

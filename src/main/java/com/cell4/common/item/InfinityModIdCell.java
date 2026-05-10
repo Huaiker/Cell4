@@ -1,32 +1,35 @@
 package com.cell4.common.item;
 
 import appeng.api.config.FuzzyMode;
+import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
+import appeng.api.stacks.GenericStack;
 import appeng.api.storage.cells.ICellWorkbenchItem;
 import appeng.items.AEBaseItem;
+import appeng.items.storage.StorageCellTooltipComponent;
 import com.cell4.common.util.Cell4Util;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.tooltip.TooltipComponent;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 /**
  * Infinity ModID Cell - can infinitely extract any item/fluid from specified mods.
  * <p>
  * Binding is done purely via NBT (stored in custom data component in 1.21.1).
  * Supports both single-value and list formats:
- * /give @p cell4:infinity_modid_cell{cell4modid:"mekanism"}
- * /give @p cell4:infinity_modid_cell{cell4modid:["mekanism","thermal"]}
+ * /give @p cell4:infinity_modid_cell{custom_data:{cell4modid:"mekanism"}}
+ * /give @p cell4:infinity_modid_cell{custom_data:{cell4modid:["mekanism","thermal"]}}
  * </p>
  */
 public class InfinityModIdCell extends AEBaseItem implements ICellWorkbenchItem {
@@ -82,13 +85,14 @@ public class InfinityModIdCell extends AEBaseItem implements ICellWorkbenchItem 
         for (String id : modIds) {
             lines.add(Component.translatable("tooltip.cell4.modid_filter", id).withStyle(ChatFormatting.LIGHT_PURPLE));
         }
-        for (AEKey key : Cell4Util.getBlacklistData(is).getItemKeys()) {
+        Cell4Util.BlacklistData blacklist = Cell4Util.getBlacklistData(is);
+        for (AEKey key : blacklist.getItemKeys()) {
             lines.add(Component.translatable("tooltip.cell4.blacklist_item", key.getDisplayName()).withStyle(ChatFormatting.RED));
         }
-        for (String tagName : Cell4Util.getBlacklistData(is).getTagNames()) {
+        for (String tagName : blacklist.getTagNames()) {
             lines.add(Component.translatable("tooltip.cell4.blacklist_tag", tagName).withStyle(ChatFormatting.RED));
         }
-        for (String modId : Cell4Util.getBlacklistData(is).getModIds()) {
+        for (String modId : blacklist.getModIds()) {
             lines.add(Component.translatable("tooltip.cell4.blacklist_modid", modId).withStyle(ChatFormatting.RED));
         }
     }
@@ -96,7 +100,31 @@ public class InfinityModIdCell extends AEBaseItem implements ICellWorkbenchItem 
     @NotNull
     @Override
     public Optional<TooltipComponent> getTooltipImage(@NotNull ItemStack stack) {
-        return Optional.empty();
+        List<String> modIds = getModIds(stack);
+        if (modIds.isEmpty()) return Optional.empty();
+
+        List<AEItemKey> previewItems = new ArrayList<>();
+        Cell4Util.BlacklistData blacklist = Cell4Util.getBlacklistData(stack);
+        Set<String> modIdSet = Set.copyOf(modIds);
+
+        for (var item : BuiltInRegistries.ITEM) {
+            if (previewItems.size() >= 18) break;
+            ResourceLocation rl = BuiltInRegistries.ITEM.getKey(item);
+            if (rl != null && modIdSet.contains(rl.getNamespace())) {
+                var key = AEItemKey.of(item);
+                if (key != null && !blacklist.isBlacklisted(key)) {
+                    previewItems.add(key);
+                }
+            }
+        }
+
+        if (previewItems.isEmpty()) return Optional.empty();
+
+        List<GenericStack> content = new ArrayList<>(previewItems.size());
+        for (AEItemKey key : previewItems) {
+            content.add(new GenericStack(key, Integer.MAX_VALUE));
+        }
+        return Optional.of(new StorageCellTooltipComponent(List.of(), content, false, true));
     }
 
     @Override

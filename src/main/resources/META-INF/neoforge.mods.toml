@@ -13,7 +13,7 @@ logoFile="cell4_logo.png"
 [[dependencies.cell4]]
 modId="neoforge"
 mandatory=true
-versionRange="[21.1,)"
+versionRange="[21.1.169,)"
 ordering="NONE"
 side="BOTH"
 

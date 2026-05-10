@@ -35,8 +35,8 @@ import java.util.Set;
  * <p>
  * Binding is done purely via NBT (stored in custom data component in 1.21.1).
  * Supports both single-value and list formats:
- * /give @p cell4:infinity_item_cell{cell4item:"minecraft:diamond"}
- * /give @p cell4:infinity_item_cell{cell4item:["minecraft:diamond","minecraft:oak_log"]}
+ * /give @p cell4:infinity_item_cell{custom_data:{cell4item:"minecraft:diamond"}}
+ * /give @p cell4:infinity_item_cell{custom_data:{cell4item:["minecraft:diamond","minecraft:oak_log"]}}
  * </p>
  * <p>
  * This class references the design of ExtendAE's InfinityCell
