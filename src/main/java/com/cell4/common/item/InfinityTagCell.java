@@ -1,46 +1,47 @@
 package com.cell4.common.item;
 
 import appeng.api.config.FuzzyMode;
+import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
+import appeng.api.stacks.GenericStack;
 import appeng.api.storage.cells.ICellWorkbenchItem;
 import appeng.items.AEBaseItem;
+import appeng.items.storage.StorageCellTooltipComponent;
 import com.cell4.common.util.Cell4Util;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
-import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.inventory.tooltip.TooltipComponent;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
-import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 /**
- * Infinity Tag Cell - can infinitely extract any item/fluid matching specified tags
- * or from specified mods.
+ * Infinity Tag Cell - can infinitely extract any item/fluid matching specified tags.
  * <p>
- * Binding is done purely via NBT. Supports both single-value and list formats:
- * /give @p cell4:infinity_tag_cell{cell4tag:"minecraft:logs"}
- * /give @p cell4:infinity_tag_cell{cell4tag:["minecraft:logs","forge:ingots/iron"]}
- * /give @p cell4:infinity_tag_cell{cell4tag:"minecraft:logs",cell4modid:"mekanism"}
- * /give @p cell4:infinity_tag_cell{cell4tag:["minecraft:logs"],cell4modid:["mekanism","thermal"]}
+ * Binding is done purely via NBT (stored in custom data component in 1.21.1).
+ * Supports both single-value and list formats:
+ * /give @p cell4:infinity_tag_cell{custom_data:{cell4tag:"minecraft:logs"}}
+ * /give @p cell4:infinity_tag_cell{custom_data:{cell4tag:["minecraft:logs","forge:ingots/iron"]}}
+ * /give @p cell4:infinity_tag_cell{custom_data:{cell4tag:"minecraft:logs",cell4modid:["mekanism"]}}
  * </p>
  */
 public class InfinityTagCell extends AEBaseItem implements ICellWorkbenchItem {
 
-    private static final String TAG_NBT_KEY = "cell4tag";
+    private static final String NBT_KEY = "cell4tag";
     private static final String MODID_NBT_KEY = "cell4modid";
 
-    public InfinityTagCell() {
-        super(new Item.Properties().stacksTo(1));
+    public InfinityTagCell(Properties properties) {
+        super(properties.stacksTo(1));
     }
 
     /**
@@ -49,25 +50,27 @@ public class InfinityTagCell extends AEBaseItem implements ICellWorkbenchItem {
      */
     @NotNull
     public static List<String> getTagNames(ItemStack stack) {
-        var tag = stack.getTag();
-        if (tag == null || !tag.contains(TAG_NBT_KEY)) {
+        CompoundTag tag = Cell4Util.getCustomTag(stack);
+        if (!tag.contains(NBT_KEY)) {
             return Collections.emptyList();
         }
-        return Cell4Util.parseStringList(tag, TAG_NBT_KEY);
+        return Cell4Util.parseStringList(tag, NBT_KEY);
     }
 
     public static void setTagNames(ItemStack stack, List<String> tagNames) {
-        var tag = stack.getOrCreateTag();
+        CompoundTag tag = Cell4Util.getCustomTag(stack);
         ListTag listTag = new ListTag();
         for (String name : tagNames) {
             listTag.add(StringTag.valueOf(name));
         }
-        tag.put(TAG_NBT_KEY, listTag);
+        tag.put(NBT_KEY, listTag);
+        Cell4Util.setCustomTag(stack, tag);
     }
 
     public static void setTagName(ItemStack stack, String tagName) {
-        var tag = stack.getOrCreateTag();
-        tag.putString(TAG_NBT_KEY, tagName);
+        CompoundTag tag = Cell4Util.getCustomTag(stack);
+        tag.putString(NBT_KEY, tagName);
+        Cell4Util.setCustomTag(stack, tag);
     }
 
     public static boolean hasTagNames(ItemStack stack) {
@@ -80,25 +83,27 @@ public class InfinityTagCell extends AEBaseItem implements ICellWorkbenchItem {
      */
     @NotNull
     public static List<String> getModIds(ItemStack stack) {
-        var tag = stack.getTag();
-        if (tag == null || !tag.contains(MODID_NBT_KEY)) {
+        CompoundTag tag = Cell4Util.getCustomTag(stack);
+        if (!tag.contains(MODID_NBT_KEY)) {
             return Collections.emptyList();
         }
         return Cell4Util.parseStringList(tag, MODID_NBT_KEY);
     }
 
     public static void setModIds(ItemStack stack, List<String> modIds) {
-        var tag = stack.getOrCreateTag();
+        CompoundTag tag = Cell4Util.getCustomTag(stack);
         ListTag listTag = new ListTag();
         for (String id : modIds) {
             listTag.add(StringTag.valueOf(id));
         }
         tag.put(MODID_NBT_KEY, listTag);
+        Cell4Util.setCustomTag(stack, tag);
     }
 
     public static void setModId(ItemStack stack, String modId) {
-        var tag = stack.getOrCreateTag();
+        CompoundTag tag = Cell4Util.getCustomTag(stack);
         tag.putString(MODID_NBT_KEY, modId);
+        Cell4Util.setCustomTag(stack, tag);
     }
 
     public static boolean hasModIds(ItemStack stack) {
@@ -111,7 +116,7 @@ public class InfinityTagCell extends AEBaseItem implements ICellWorkbenchItem {
     }
 
     @Override
-    public void appendHoverText(@NotNull ItemStack is, Level world, @NotNull List<Component> lines, @NotNull TooltipFlag adv) {
+    public void appendHoverText(@NotNull ItemStack is, @NotNull Item.TooltipContext context, @NotNull List<Component> lines, @NotNull TooltipFlag adv) {
         lines.add(Component.translatable("tooltip.cell4.infinity").withStyle(ChatFormatting.GREEN));
         List<String> tags = getTagNames(is);
         for (String tag : tags) {
@@ -136,7 +141,42 @@ public class InfinityTagCell extends AEBaseItem implements ICellWorkbenchItem {
     @NotNull
     @Override
     public Optional<TooltipComponent> getTooltipImage(@NotNull ItemStack stack) {
-        return Optional.empty();
+        List<String> tagNames = getTagNames(stack);
+        if (tagNames.isEmpty()) return Optional.empty();
+
+        List<AEItemKey> previewItems = new ArrayList<>();
+        Cell4Util.BlacklistData blacklist = Cell4Util.getBlacklistData(stack);
+        List<String> modIds = getModIds(stack);
+        boolean hasModIds = !modIds.isEmpty();
+        Set<String> modIdSet = Set.copyOf(modIds);
+
+        int totalMatchCount = 0;
+
+        for (String tagName : tagNames) {
+            ResourceLocation tagRL = ResourceLocation.tryParse(tagName);
+            if (tagRL == null) continue;
+            TagKey<net.minecraft.world.item.Item> itemTag = TagKey.create(BuiltInRegistries.ITEM.key(), tagRL);
+            for (Holder<net.minecraft.world.item.Item> holder : BuiltInRegistries.ITEM.getTagOrEmpty(itemTag)) {
+                var key = AEItemKey.of(holder.value());
+                if (key == null || blacklist.isBlacklisted(key)) continue;
+                if (hasModIds) {
+                    ResourceLocation rl = BuiltInRegistries.ITEM.getKey(key.getItem());
+                    if (rl == null || !modIdSet.contains(rl.getNamespace())) continue;
+                }
+                totalMatchCount++;
+                if (previewItems.size() < 18) {
+                    previewItems.add(key);
+                }
+            }
+        }
+
+        if (previewItems.isEmpty()) return Optional.empty();
+
+        List<GenericStack> content = new ArrayList<>(previewItems.size());
+        for (AEItemKey key : previewItems) {
+            content.add(new GenericStack(key, Integer.MAX_VALUE));
+        }
+        return Optional.of(new StorageCellTooltipComponent(List.of(), content, false, true));
     }
 
     @Override

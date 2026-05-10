@@ -1,9 +1,10 @@
 {
-  "itemGroup.cell4": "Cell\u2074 (Forge)",
+  "itemGroup.cell4": "Cell\u2074 (NeoForge)",
 
   "item.cell4.infinity_item_cell": "\u65e0\u9650\u7269\u54c1\u5143\u4ef6",
   "item.cell4.infinity_tag_cell": "\u65e0\u9650\u6807\u7b7e\u5143\u4ef6",
   "item.cell4.infinity_modid_cell": "\u65e0\u9650\u6a21\u7ec4\u5143\u4ef6",
+  "item.cell4.cell_configurator": "\u5143\u4ef6\u914d\u7f6e\u5668",
 
   "tooltip.cell4.infinity": "\u221E \u65e0\u9650",
   "tooltip.cell4.item_count": "\u5df2\u7ed1\u5b9a%s\u79cd\u7269\u54c1",
@@ -11,5 +12,15 @@
   "tooltip.cell4.modid_filter": "\u6a21\u7ec4ID\uff1a%s",
   "tooltip.cell4.blacklist_item": "\u2716 %s",
   "tooltip.cell4.blacklist_tag": "\u2716 \u6807\u7b7e\uff1a%s",
-  "tooltip.cell4.blacklist_modid": "\u2716 \u6a21\u7ec4\uff1a%s"
+  "tooltip.cell4.blacklist_modid": "\u2716 \u6a21\u7ec4\uff1a@%s",
+  "tooltip.cell4.more_items": "... \u8fd8\u6709 %s \u4e2a",
+
+  "gui.cell4.cell4item": "\u7269\u54c1\uff1a",
+  "gui.cell4.cell4tag": "\u6807\u7b7e\uff1a",
+  "gui.cell4.cell4modid": "\u6a21\u7ec4ID\uff1a",
+  "gui.cell4.blacklist": "\u9ed1\u540d\u5355\uff1a",
+  "gui.cell4.save": "\u4fdd\u5b58",
+  "gui.cell4.cell_slot": "\u5143\u4ef6\uff1a",
+  "gui.cell4.editing": "\u6b63\u5728\u7f16\u8f91\uff1a%s",
+  "gui.cell4.no_cell": "\u8bf7\u5c06\u5143\u4ef6\u653e\u5165\u69fd\u4f4d\uff01"
 }

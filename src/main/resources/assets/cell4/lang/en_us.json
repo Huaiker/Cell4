@@ -1,9 +1,10 @@
 {
-  "itemGroup.cell4": "Cell\u2074 (Forge)",
+  "itemGroup.cell4": "Cell\u2074 (NeoForge)",
 
   "item.cell4.infinity_item_cell": "Infinity Item Cell",
   "item.cell4.infinity_tag_cell": "Infinity Tag Cell",
   "item.cell4.infinity_modid_cell": "Infinity ModID Cell",
+  "item.cell4.cell_configurator": "Cell Configurator",
 
   "tooltip.cell4.infinity": "\u221E Infinite",
   "tooltip.cell4.item_count": "%s items bound",
@@ -11,5 +12,15 @@
   "tooltip.cell4.modid_filter": "Mod ID: %s",
   "tooltip.cell4.blacklist_item": "\u2716 %s",
   "tooltip.cell4.blacklist_tag": "\u2716 Tag: %s",
-  "tooltip.cell4.blacklist_modid": "\u2716 Mod: %s"
+  "tooltip.cell4.blacklist_modid": "\u2716 Mod: @%s",
+  "tooltip.cell4.more_items": "... and %s more",
+
+  "gui.cell4.cell4item": "Items:",
+  "gui.cell4.cell4tag": "Tags:",
+  "gui.cell4.cell4modid": "Mod IDs:",
+  "gui.cell4.blacklist": "Blacklist:",
+  "gui.cell4.save": "Save",
+  "gui.cell4.cell_slot": "Cell:",
+  "gui.cell4.editing": "Editing: %s",
+  "gui.cell4.no_cell": "Place a cell in the slot!"
 }
