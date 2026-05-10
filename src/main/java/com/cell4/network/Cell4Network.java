@@ -1,21 +1,25 @@
 package com.cell4.network;
 
 import com.cell4.Cell4;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
-import net.neoforged.neoforge.network.registration.PayloadRegistrar;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraftforge.network.NetworkRegistry;
+import net.minecraftforge.network.simple.SimpleChannel;
 
-@EventBusSubscriber(modid = Cell4.MODID, bus = EventBusSubscriber.Bus.MOD)
 public class Cell4Network {
+    private static final String PROTOCOL_VERSION = "1";
+    public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
+        new ResourceLocation(Cell4.MODID, "main"),
+        () -> PROTOCOL_VERSION,
+        PROTOCOL_VERSION::equals,
+        PROTOCOL_VERSION::equals
+    );
 
-    @SubscribeEvent
-    public static void register(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar("1");
-        registrar.playToServer(
-            CellConfigSavePacket.TYPE,
-            CellConfigSavePacket.STREAM_CODEC,
-            CellConfigSavePacket::handle
-        );
+    private static int nextId = 0;
+
+    public static void register() {
+        CHANNEL.registerMessage(nextId++, CellConfigSavePacket.class,
+            CellConfigSavePacket::encode,
+            CellConfigSavePacket::decode,
+            CellConfigSavePacket::handle);
     }
 }

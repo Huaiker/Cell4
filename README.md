@@ -25,7 +25,7 @@ The **Cell Configurator** is an in-game tool for editing cell data visually. Rig
 - Editable fields change based on the cell type placed in the slot.
 - Inactive fields are shown in gray and cannot be edited.
 - Separate multiple values with commas (e.g. `minecraft:diamond,minecraft:oak_log`).
-- In the blacklist field, prefix tags with `#` (e.g. `#c:ingots/steel`) and mod IDs with `@` (e.g. `@mekanism`).
+- In the blacklist field, prefix tags with `#` (e.g. `#forge:ingots/steel`) and mod IDs with `@` (e.g. `@mekanism`).
 - Press **Tab** to cycle between editable fields.
 - Click **Save** to apply changes.
 
@@ -49,17 +49,17 @@ The **Cell Configurator** is an in-game tool for editing cell data visually. Rig
 ### Single Value
 
 ```
-/give @p cell4:infinity_item_cell[custom_data={cell4item:"minecraft:diamond"}]
-/give @p cell4:infinity_tag_cell[custom_data={cell4tag:"minecraft:logs"}]
-/give @p cell4:infinity_modid_cell[custom_data={cell4modid:"mekanism"}]
+/give @p cell4:infinity_item_cell{cell4item:"minecraft:diamond"}
+/give @p cell4:infinity_tag_cell{cell4tag:"minecraft:logs"}
+/give @p cell4:infinity_modid_cell{cell4modid:"mekanism"}
 ```
 
 ### Multiple Values
 
 ```
-/give @p cell4:infinity_item_cell[custom_data={cell4item:["minecraft:diamond","minecraft:oak_log"]}]
-/give @p cell4:infinity_tag_cell[custom_data={cell4tag:["minecraft:logs","c:ingots/iron"]}]
-/give @p cell4:infinity_modid_cell[custom_data={cell4modid:["mekanism","thermal"]}]
+/give @p cell4:infinity_item_cell{cell4item:["minecraft:diamond","minecraft:oak_log"]}
+/give @p cell4:infinity_tag_cell{cell4tag:["minecraft:logs","forge:ingots/iron"]}
+/give @p cell4:infinity_modid_cell{cell4modid:["mekanism","thermal"]}
 ```
 
 ### Tag Cell with Mod ID Filter
@@ -67,8 +67,8 @@ The **Cell Configurator** is an in-game tool for editing cell data visually. Rig
 The Infinity Tag Cell supports both `cell4tag` and `cell4modid` simultaneously:
 
 ```
-/give @p cell4:infinity_tag_cell[custom_data={cell4tag:"minecraft:logs",cell4modid:"mekanism"}]
-/give @p cell4:infinity_tag_cell[custom_data={cell4tag:["minecraft:logs","c:ingots/iron"],cell4modid:["mekanism","thermal"]}]
+/give @p cell4:infinity_tag_cell{cell4tag:"minecraft:logs",cell4modid:"mekanism"}
+/give @p cell4:infinity_tag_cell{cell4tag:["minecraft:logs","forge:ingots/iron"],cell4modid:["mekanism","thermal"]}
 ```
 
 ### Blacklist
@@ -79,8 +79,8 @@ Blacklist entries support three types:
 - **Mod ID** — prefixed with `@` (e.g. `@mekanism`)
 
 ```
-/give @p cell4:infinity_tag_cell[custom_data={cell4tag:"minecraft:logs",cell4blacklist:"minecraft:birch_log"}]
-/give @p cell4:infinity_modid_cell[custom_data={cell4modid:"mekanism",cell4blacklist:["mekanism:steel_ingot","#c:ingots/steel","@thermal"]}]
+/give @p cell4:infinity_tag_cell{cell4tag:"minecraft:logs",cell4blacklist:"minecraft:birch_log"}
+/give @p cell4:infinity_modid_cell{cell4modid:"mekanism",cell4blacklist:["mekanism:steel_ingot","#forge:ingots/steel","@thermal"]}
 ```
 
 Blacklisted items are shown in the cell tooltip with a ✖ marker.
@@ -97,9 +97,9 @@ The output JAR will be in `build/libs/`.
 
 | Dependency | Version |
 |-----------|---------|
-| Minecraft | 1.21.1 |
-| NeoForge | 21.1.169+ |
-| Applied Energistics 2 | 19.0.0 - 19.x |
+| Minecraft | 1.20.1 |
+| Forge | 47.1.0+ |
+| Applied Energistics 2 | 15.0.0 - 15.x |
 
 ## Attribution
 

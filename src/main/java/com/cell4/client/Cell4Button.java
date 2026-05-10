@@ -17,12 +17,12 @@ public class Cell4Button extends Button {
         int bgColor = this.isHovered() ? 0xFFC8DDEF : 0xFFAFCAE6;
         int highlightColor = 0xFFDCEAFA;
 
-        graphics.fill(getX(), getY(), getX() + getWidth(), getY() + getHeight(), borderColor);
-        graphics.fill(getX() + 1, getY() + 1, getX() + getWidth() - 1, getY() + getHeight() - 1, bgColor);
-        graphics.fill(getX() + 1, getY() + 1, getX() + getWidth() - 1, getY() + 2, highlightColor);
+        graphics.fill(this.getX(), this.getY(), this.getX() + this.getWidth(), this.getY() + this.getHeight(), borderColor);
+        graphics.fill(this.getX() + 1, this.getY() + 1, this.getX() + this.getWidth() - 1, this.getY() + this.getHeight() - 1, bgColor);
+        graphics.fill(this.getX() + 1, this.getY() + 1, this.getX() + this.getWidth() - 1, this.getY() + 2, highlightColor);
 
         Minecraft mc = Minecraft.getInstance();
         int textColor = this.isHovered() ? 0x2A3E5C : 0x3C5078;
-        graphics.drawCenteredString(mc.font, this.getMessage(), getX() + getWidth() / 2, getY() + (getHeight() - 8) / 2, textColor);
+        graphics.drawCenteredString(mc.font, this.getMessage(), this.getX() + this.getWidth() / 2, this.getY() + (this.getHeight() - 8) / 2, textColor);
     }
 }

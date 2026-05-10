@@ -15,12 +15,15 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.tooltip.TooltipComponent;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
 import org.jetbrains.annotations.NotNull;
 
@@ -33,10 +36,9 @@ import java.util.Set;
 /**
  * Infinity Item Cell - can infinitely extract specific items, fluids, or other AE2 key types.
  * <p>
- * Binding is done purely via NBT (stored in custom data component in 1.21.1).
- * Supports both single-value and list formats:
- * /give @p cell4:infinity_item_cell{custom_data:{cell4item:"minecraft:diamond"}}
- * /give @p cell4:infinity_item_cell{custom_data:{cell4item:["minecraft:diamond","minecraft:oak_log"]}}
+ * Binding is done purely via NBT. Supports both single-value and list formats:
+ * /give @p cell4:infinity_item_cell{cell4item:"minecraft:diamond"}
+ * /give @p cell4:infinity_item_cell{cell4item:["minecraft:diamond","minecraft:oak_log"]}}
  * </p>
  * <p>
  * This class references the design of ExtendAE's InfinityCell
@@ -48,8 +50,8 @@ public class InfinityItemCell extends AEBaseItem implements ICellWorkbenchItem {
 
     private static final String NBT_KEY = "cell4item";
 
-    public InfinityItemCell(Properties properties) {
-        super(properties.stacksTo(1));
+    public InfinityItemCell() {
+        super(new Item.Properties().stacksTo(1));
     }
 
     /**
@@ -58,11 +60,30 @@ public class InfinityItemCell extends AEBaseItem implements ICellWorkbenchItem {
      */
     @NotNull
     public static List<String> getIdentifiers(ItemStack stack) {
-        CompoundTag tag = Cell4Util.getCustomTag(stack);
-        if (!tag.contains(NBT_KEY)) {
+        var tag = stack.getTag();
+        if (tag == null || !tag.contains(NBT_KEY)) {
             return Collections.emptyList();
         }
-        return Cell4Util.parseStringList(tag, NBT_KEY);
+
+        // List format: {cell4item:["minecraft:diamond","minecraft:oak_log"]}
+        if (tag.get(NBT_KEY) instanceof ListTag listTag) {
+            List<String> result = new ArrayList<>(listTag.size());
+            for (int i = 0; i < listTag.size(); i++) {
+                String str = listTag.getString(i);
+                if (!str.isEmpty()) {
+                    result.add(str);
+                }
+            }
+            return result;
+        }
+
+        // Legacy single string format: {cell4item:"minecraft:diamond"}
+        String single = tag.getString(NBT_KEY);
+        if (!single.isEmpty()) {
+            return Collections.singletonList(single);
+        }
+
+        return Collections.emptyList();
     }
 
     /**
@@ -100,22 +121,20 @@ public class InfinityItemCell extends AEBaseItem implements ICellWorkbenchItem {
      * Set identifiers using list format on an existing cell ItemStack.
      */
     public static void setIdentifiers(ItemStack stack, List<String> ids) {
-        CompoundTag tag = Cell4Util.getCustomTag(stack);
+        var tag = stack.getOrCreateTag();
         ListTag listTag = new ListTag();
         for (String id : ids) {
             listTag.add(StringTag.valueOf(id));
         }
         tag.put(NBT_KEY, listTag);
-        Cell4Util.setCustomTag(stack, tag);
     }
 
     /**
      * Set a single identifier (legacy format) on an existing cell ItemStack.
      */
     public static void setIdentifier(ItemStack stack, String id) {
-        CompoundTag tag = Cell4Util.getCustomTag(stack);
+        var tag = stack.getOrCreateTag();
         tag.putString(NBT_KEY, id);
-        Cell4Util.setCustomTag(stack, tag);
     }
 
     /**
@@ -133,12 +152,14 @@ public class InfinityItemCell extends AEBaseItem implements ICellWorkbenchItem {
     }
 
     @Override
-    public void appendHoverText(@NotNull ItemStack is, @NotNull Item.TooltipContext context, @NotNull List<Component> lines, @NotNull TooltipFlag adv) {
+    public void appendHoverText(@NotNull ItemStack is, Level world, @NotNull List<Component> lines, @NotNull TooltipFlag adv) {
         lines.add(Component.translatable("tooltip.cell4.infinity").withStyle(ChatFormatting.GREEN));
         List<String> ids = getIdentifiers(is);
         if (ids.size() > 1) {
             lines.add(Component.translatable("tooltip.cell4.item_count", ids.size()).withStyle(ChatFormatting.AQUA));
         }
+
+        // Show blacklist entries with all types
         Cell4Util.BlacklistData blacklist = Cell4Util.getBlacklistData(is);
         for (AEKey key : blacklist.getItemKeys()) {
             lines.add(Component.translatable("tooltip.cell4.blacklist_item", key.getDisplayName()).withStyle(ChatFormatting.RED));

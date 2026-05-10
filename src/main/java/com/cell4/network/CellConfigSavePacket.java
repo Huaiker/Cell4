@@ -1,54 +1,48 @@
 package com.cell4.network;
 
-import com.cell4.Cell4;
 import com.cell4.common.item.InfinityItemCell;
 import com.cell4.common.item.InfinityModIdCell;
 import com.cell4.common.item.InfinityTagCell;
 import com.cell4.common.menu.CellConfiguratorMenu;
 import com.cell4.common.util.Cell4Util;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent;
 
 import java.util.*;
+import java.util.function.Supplier;
 
-public record CellConfigSavePacket(String cell4item, String cell4tag, String cell4modid, String blacklist) implements CustomPacketPayload {
+public class CellConfigSavePacket {
+    private final String cell4item;
+    private final String cell4tag;
+    private final String cell4modid;
+    private final String blacklist;
 
-    public static final Type<CellConfigSavePacket> TYPE = new Type<>(
-        ResourceLocation.fromNamespaceAndPath(Cell4.MODID, "cell_config_save")
-    );
+    public CellConfigSavePacket(String cell4item, String cell4tag, String cell4modid, String blacklist) {
+        this.cell4item = cell4item;
+        this.cell4tag = cell4tag;
+        this.cell4modid = cell4modid;
+        this.blacklist = blacklist;
+    }
 
-    public static final StreamCodec<FriendlyByteBuf, CellConfigSavePacket> STREAM_CODEC = StreamCodec.of(
-        CellConfigSavePacket::encode,
-        CellConfigSavePacket::decode
-    );
-
-    private static void encode(FriendlyByteBuf buf, CellConfigSavePacket pkt) {
+    public static void encode(CellConfigSavePacket pkt, FriendlyByteBuf buf) {
         buf.writeUtf(pkt.cell4item, 1024);
         buf.writeUtf(pkt.cell4tag, 1024);
         buf.writeUtf(pkt.cell4modid, 1024);
         buf.writeUtf(pkt.blacklist, 1024);
     }
 
-    private static CellConfigSavePacket decode(FriendlyByteBuf buf) {
+    public static CellConfigSavePacket decode(FriendlyByteBuf buf) {
         return new CellConfigSavePacket(buf.readUtf(1024), buf.readUtf(1024), buf.readUtf(1024), buf.readUtf(1024));
     }
 
-    @Override
-    public Type<? extends CustomPacketPayload> type() {
-        return TYPE;
-    }
-
-    public static void handle(CellConfigSavePacket pkt, IPayloadContext context) {
-        context.enqueueWork(() -> {
-            if (context.player() instanceof ServerPlayer player && player.containerMenu instanceof CellConfiguratorMenu menu) {
+    public static void handle(CellConfigSavePacket pkt, Supplier<NetworkEvent.Context> ctx) {
+        ctx.get().enqueueWork(() -> {
+            ServerPlayer player = ctx.get().getSender();
+            if (player != null && player.containerMenu instanceof CellConfiguratorMenu menu) {
                 ItemStack cell = menu.getCellInSlot();
                 if (cell.isEmpty()) return;
 
@@ -57,55 +51,37 @@ public record CellConfigSavePacket(String cell4item, String cell4tag, String cel
                 List<String> modIds = parseCommaList(pkt.cell4modid);
                 List<String> blacklist = parseCommaList(pkt.blacklist);
 
-                // Apply changes on server side (using NeoForge DataComponents-compatible NBT methods)
+                // Apply changes on server side
                 if (cell.getItem() instanceof InfinityItemCell) {
                     if (!items.isEmpty()) InfinityItemCell.setIdentifiers(cell, items);
-                    else {
-                        CompoundTag tag = Cell4Util.getCustomTag(cell);
-                        tag.remove("cell4item");
-                        Cell4Util.setCustomTag(cell, tag);
-                    }
+                    else cell.removeTagKey("cell4item");
                 }
                 if (cell.getItem() instanceof InfinityTagCell) {
                     if (!tags.isEmpty()) InfinityTagCell.setTagNames(cell, tags);
-                    else {
-                        CompoundTag tag = Cell4Util.getCustomTag(cell);
-                        tag.remove("cell4tag");
-                        Cell4Util.setCustomTag(cell, tag);
-                    }
+                    else cell.removeTagKey("cell4tag");
                     if (!modIds.isEmpty()) InfinityTagCell.setModIds(cell, modIds);
-                    else {
-                        CompoundTag tag = Cell4Util.getCustomTag(cell);
-                        tag.remove("cell4modid");
-                        Cell4Util.setCustomTag(cell, tag);
-                    }
+                    else cell.removeTagKey("cell4modid");
                 }
                 if (cell.getItem() instanceof InfinityModIdCell) {
                     if (!modIds.isEmpty()) InfinityModIdCell.setModIds(cell, modIds);
-                    else {
-                        CompoundTag tag = Cell4Util.getCustomTag(cell);
-                        tag.remove("cell4modid");
-                        Cell4Util.setCustomTag(cell, tag);
-                    }
+                    else cell.removeTagKey("cell4modid");
                 }
 
                 if (!blacklist.isEmpty()) {
-                    CompoundTag tag = Cell4Util.getCustomTag(cell);
+                    var tag = cell.getOrCreateTag();
                     ListTag listTag = new ListTag();
                     for (String entry : blacklist) {
                         listTag.add(StringTag.valueOf(entry));
                     }
                     tag.put(Cell4Util.BLACKLIST_KEY, listTag);
-                    Cell4Util.setCustomTag(cell, tag);
                 } else {
-                    CompoundTag tag = Cell4Util.getCustomTag(cell);
-                    tag.remove(Cell4Util.BLACKLIST_KEY);
-                    Cell4Util.setCustomTag(cell, tag);
+                    cell.removeTagKey(Cell4Util.BLACKLIST_KEY);
                 }
 
                 menu.getSlot(0).setChanged();
             }
         });
+        ctx.get().setPacketHandled(true);
     }
 
     private static List<String> parseCommaList(String value) {

@@ -1,5 +1,6 @@
 package com.cell4.common.item;
 
+import com.cell4.common.menu.CellConfiguratorMenu;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.player.Inventory;
@@ -16,6 +17,6 @@ public class CellConfiguratorMenuProvider implements MenuProvider {
     @Nullable
     @Override
     public AbstractContainerMenu createMenu(int containerId, Inventory inventory, Player player) {
-        return new com.cell4.common.menu.CellConfiguratorMenu(containerId, inventory);
+        return new CellConfiguratorMenu(containerId, inventory);
     }
 }

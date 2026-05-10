@@ -4,6 +4,7 @@ import com.cell4.Cell4;
 import com.cell4.common.item.*;
 import com.cell4.common.menu.CellConfiguratorMenu;
 import com.cell4.common.util.Cell4Util;
+import com.cell4.network.Cell4Network;
 import com.cell4.network.CellConfigSavePacket;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
@@ -16,15 +17,15 @@ import net.minecraft.world.item.ItemStack;
 import java.util.*;
 
 public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfiguratorMenu> {
-    
-    private static final ResourceLocation GUI_TEXTURE = ResourceLocation.fromNamespaceAndPath(Cell4.MODID, "textures/guis/cell_configurator.png");
-    
+
+    private static final ResourceLocation GUI_TEXTURE = new ResourceLocation(Cell4.MODID, "textures/guis/cell_configurator.png");
+
     private EditBox cell4itemField;
     private EditBox cell4tagField;
     private EditBox cell4modidField;
     private EditBox blacklistField;
     private Cell4Button saveButton;
-    
+
     private ItemStack lastCellItem = ItemStack.EMPTY;
 
     public CellConfiguratorScreen(CellConfiguratorMenu menu, Inventory inventory, Component title) {
@@ -34,63 +35,63 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
         this.inventoryLabelY = 167;
         this.titleLabelY = 6;
     }
-    
+
     @Override
     protected void init() {
         super.init();
-        
+
         int x = this.leftPos;
         int y = this.topPos;
-        
+
         int fieldX = x + 71;
         int fieldWidth = 174;
-        
+
         this.cell4itemField = new EditBox(this.font, fieldX, y + 80, fieldWidth, 12, Component.literal("cell4item"));
         this.cell4itemField.setMaxLength(1024);
         this.cell4itemField.setBordered(false);
         this.cell4itemField.setTextColor(0x2A3E5C);
         this.addRenderableWidget(this.cell4itemField);
-        
+
         this.cell4tagField = new EditBox(this.font, fieldX, y + 100, fieldWidth, 12, Component.literal("cell4tag"));
         this.cell4tagField.setMaxLength(1024);
         this.cell4tagField.setBordered(false);
         this.cell4tagField.setTextColor(0x2A3E5C);
         this.addRenderableWidget(this.cell4tagField);
-        
+
         this.cell4modidField = new EditBox(this.font, fieldX, y + 120, fieldWidth, 12, Component.literal("cell4modid"));
         this.cell4modidField.setMaxLength(1024);
         this.cell4modidField.setBordered(false);
         this.cell4modidField.setTextColor(0x2A3E5C);
         this.addRenderableWidget(this.cell4modidField);
-        
+
         this.blacklistField = new EditBox(this.font, fieldX, y + 140, fieldWidth, 12, Component.literal("blacklist"));
         this.blacklistField.setMaxLength(1024);
         this.blacklistField.setBordered(false);
         this.blacklistField.setTextColor(0x2A3E5C);
         this.addRenderableWidget(this.blacklistField);
-        
+
         // Save button aligned with cell slot, at far right of GUI
         this.saveButton = new Cell4Button(x + 176, y + 22, 72, 20, Component.translatable("gui.cell4.save"), this::onSave);
         this.addRenderableWidget(this.saveButton);
-        
+
         this.lastCellItem = ItemStack.EMPTY;
     }
-    
+
     @Override
     protected void containerTick() {
         super.containerTick();
-        
+
         ItemStack currentCell = this.menu.getCellInSlot();
-        
+
         if (!ItemStack.matches(currentCell, this.lastCellItem)) {
             this.lastCellItem = currentCell.copy();
-            
+
             if (!currentCell.isEmpty()) {
                 String itemValue = "";
                 String tagValue = "";
                 String modIdValue = "";
                 String blacklistValue = "";
-                
+
                 if (currentCell.getItem() instanceof InfinityItemCell) {
                     itemValue = String.join(",", InfinityItemCell.getIdentifiers(currentCell));
                 }
@@ -102,12 +103,12 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
                     modIdValue = String.join(",", InfinityModIdCell.getModIds(currentCell));
                 }
                 blacklistValue = String.join(",", Cell4Util.getBlacklistIds(currentCell));
-                
+
                 this.cell4itemField.setValue(itemValue);
                 this.cell4tagField.setValue(tagValue);
                 this.cell4modidField.setValue(modIdValue);
                 this.blacklistField.setValue(blacklistValue);
-                
+
                 this.cell4itemField.setEditable(CellConfiguratorMenu.canEditCell4Item(currentCell));
                 this.cell4tagField.setEditable(CellConfiguratorMenu.canEditCell4Tag(currentCell));
                 this.cell4modidField.setEditable(CellConfiguratorMenu.canEditCell4ModId(currentCell));
@@ -117,7 +118,7 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
                 this.cell4tagField.setValue("");
                 this.cell4modidField.setValue("");
                 this.blacklistField.setValue("");
-                
+
                 this.cell4itemField.setEditable(false);
                 this.cell4tagField.setEditable(false);
                 this.cell4modidField.setEditable(false);
@@ -128,20 +129,20 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
             }
         }
     }
-    
+
     private void onSave(net.minecraft.client.gui.components.Button button) {
         ItemStack targetCell = this.menu.getCellInSlot();
         if (targetCell.isEmpty()) return;
-        
+
         // Send C2S packet — server applies the changes
-        net.neoforged.neoforge.network.PacketDistributor.sendToServer(new CellConfigSavePacket(
+        Cell4Network.CHANNEL.sendToServer(new CellConfigSavePacket(
             this.cell4itemField.getValue(),
             this.cell4tagField.getValue(),
             this.cell4modidField.getValue(),
             this.blacklistField.getValue()
         ));
     }
-    
+
     @Override
     protected void renderBg(GuiGraphics guiGraphics, float partialTick, int mouseX, int mouseY) {
         guiGraphics.blit(GUI_TEXTURE, this.leftPos, this.topPos, 0, 0, this.imageWidth, this.imageHeight);
@@ -151,22 +152,22 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
     protected void renderLabels(GuiGraphics guiGraphics, int x, int y) {
         // Labels are drawn manually in render() — prevent default duplicate rendering
     }
-    
+
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        this.renderBackground(guiGraphics, mouseX, mouseY, partialTick);
+        this.renderBackground(guiGraphics);
         super.render(guiGraphics, mouseX, mouseY, partialTick);
-        
+
         int x = this.leftPos;
         int y = this.topPos;
-        
+
         guiGraphics.drawString(this.font, this.title, x + 8, y + 6, 0x2A3E5C, false);
         guiGraphics.drawString(this.font, Component.translatable("gui.cell4.cell_slot"), x + 30, y + 26, 0x2A3E5C, false);
-        
+
         ItemStack targetCell = this.menu.getCellInSlot();
         int labelActive = 0x2A3E5C;
         int labelInactive = 0x8899AA;
-        
+
         guiGraphics.drawString(this.font, Component.translatable("gui.cell4.cell4item"), x + 8, y + 81,
                 !targetCell.isEmpty() && CellConfiguratorMenu.canEditCell4Item(targetCell) ? labelActive : labelInactive, false);
         guiGraphics.drawString(this.font, Component.translatable("gui.cell4.cell4tag"), x + 8, y + 101,
@@ -175,21 +176,21 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
                 !targetCell.isEmpty() && CellConfiguratorMenu.canEditCell4ModId(targetCell) ? labelActive : labelInactive, false);
         guiGraphics.drawString(this.font, Component.translatable("gui.cell4.blacklist"), x + 8, y + 141,
                 !targetCell.isEmpty() && CellConfiguratorMenu.canEditBlacklist(targetCell) ? labelActive : labelInactive, false);
-        
+
         // Status line on the left
         if (!targetCell.isEmpty()) {
-            guiGraphics.drawString(this.font, 
-                Component.translatable("gui.cell4.editing", targetCell.getHoverName()), 
+            guiGraphics.drawString(this.font,
+                Component.translatable("gui.cell4.editing", targetCell.getHoverName()),
                 x + 8, y + 156, 0x506A8C, false);
         } else {
-            guiGraphics.drawString(this.font, 
-                Component.translatable("gui.cell4.no_cell"), 
+            guiGraphics.drawString(this.font,
+                Component.translatable("gui.cell4.no_cell"),
                 x + 8, y + 156, 0xFF5555, false);
         }
-        
+
         this.renderTooltip(guiGraphics, mouseX, mouseY);
     }
-    
+
     private EditBox getFocusedField() {
         if (this.cell4itemField.isFocused()) return this.cell4itemField;
         if (this.cell4tagField.isFocused()) return this.cell4tagField;

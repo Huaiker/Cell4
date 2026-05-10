@@ -1,7 +1,6 @@
 {
   "pack": {
     "description": "Cell\u2074 Resources",
-    "pack_format": 34,
-    "supported_formats": 34
+    "pack_format": 15
   }
 }

@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
  * StorageCell implementation for the Infinity Item Cell.
  * Provides infinite extraction of specific AEKeys (items, fluids, etc.).
  * Insertion of matching keys is accepted but items are silently discarded (phantom storage).
- * Supports blacklist via cell4blacklist NBT key.
+ * Supports blacklist via cell4blacklist NBT key with BlacklistData (items, tags, mod IDs).
  */
 public class InfinityItemStorage implements StorageCell {
 

@@ -14,6 +14,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
 
 import java.util.List;
@@ -23,7 +24,7 @@ import java.util.Set;
  * StorageCell implementation for the Infinity ModID Cell.
  * Provides infinite extraction of any item/fluid from specified mods (namespaces).
  * Insertion of matching keys is accepted but items are silently discarded (phantom storage).
- * Supports blacklist via cell4blacklist NBT key.
+ * Supports blacklist via cell4blacklist NBT key with BlacklistData (items, tags, mod IDs).
  */
 public class InfinityModIdStorage implements StorageCell {
 

@@ -1,58 +1,65 @@
 plugins {
-    id 'java-library'
     id 'eclipse'
     id 'idea'
     id 'maven-publish'
-    id 'net.neoforged.moddev' version '2.0.28-beta'
+    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
 }
 
 version = mod_version
 group = mod_group_id
+archivesBaseName = 'Cell4-1.20.1forge'
 
-base {
-    archivesName = 'Cell4-1.21.1neo'
-}
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
-java.toolchain.languageVersion = JavaLanguageVersion.of(21)
-
-repositories {
-    maven {
-        name = "AE2 Maven"
-        url = "https://modmaven.dev/"
-    }
-}
-
-neoForge {
-    version = project.neo_version
+minecraft {
+    mappings channel: mapping_channel, version: mapping_version
+    copyIdeResources = true
 
     runs {
-        configureEach {
-            systemProperty 'forge.logging.markers', 'REGISTRIES'
-            systemProperty 'forge.logging.console.level', 'debug'
-            systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
-        }
-
         client {
-            client()
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+            property 'forge.enabledGameTestNamespaces', mod_id
+            mods {
+                "${mod_id}" {
+                    source sourceSets.main
+                }
+            }
         }
 
         server {
-            server()
-        }
-    }
-
-    mods {
-        "${mod_id}" {
-            sourceSet sourceSets.main
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+            property 'forge.enabledGameTestNamespaces', mod_id
+            mods {
+                "${mod_id}" {
+                    source sourceSets.main
+                }
+            }
         }
     }
 }
 
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
+repositories {
+    maven {
+        name = "AE2 Maven"
+        url = "https://modmaven.dev/"
+    }
+    maven {
+        name = "Modrinth Maven"
+        url = "https://api.modrinth.com/maven"
+    }
+}
+
 dependencies {
-    implementation "org.appliedenergistics:appliedenergistics2:${ae2_version}"
-    implementation "org.appliedenergistics:guideme:${guideme_version}"
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+
+    // AE2 dependency
+    implementation fg.deobf("appeng:appliedenergistics2-forge:${ae2_version}")
 }
 
 jar {
@@ -68,6 +75,8 @@ jar {
         ])
     }
 }
+
+jar.finalizedBy('reobfJar')
 
 publishing {
     publications {

@@ -24,7 +24,7 @@ public class CellConfiguratorMenu extends AbstractContainerMenu {
         this(containerId, inventory, null);
     }
 
-    public CellConfiguratorMenu(int containerId, Inventory inventory, net.minecraft.network.RegistryFriendlyByteBuf buf) {
+    public CellConfiguratorMenu(int containerId, Inventory inventory, net.minecraft.network.FriendlyByteBuf buf) {
         super(Cell4MenuTypes.CELL_CONFIGURATOR.get(), containerId);
 
         this.playerInventory = inventory;

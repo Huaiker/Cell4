@@ -25,7 +25,7 @@ Cell⁴是一个为整合包开发设计的AE2附属模组. 它添加了三种**
 - 可编辑的字段根据放入的元件类型自动变化.
 - 不可编辑的字段显示为灰色, 无法获得焦点.
 - 多个值之间用逗号隔开 (如 `minecraft:diamond,minecraft:oak_log`).
-- 在黑名单字段中, 标签需加 `#` 前缀 (如 `#c:ingots/steel`), 模组ID需加 `@` 前缀 (如 `@mekanism`).
+- 在黑名单字段中, 标签需加 `#` 前缀 (如 `#forge:ingots/steel`), 模组ID需加 `@` 前缀 (如 `@mekanism`).
 - 按**Tab**键在可编辑字段间循环切换.
 - 点击**保存**按钮应用更改.
 
@@ -49,17 +49,17 @@ Cell⁴是一个为整合包开发设计的AE2附属模组. 它添加了三种**
 ### 单值
 
 ```
-/give @p cell4:infinity_item_cell[custom_data={cell4item:"minecraft:diamond"}]
-/give @p cell4:infinity_tag_cell[custom_data={cell4tag:"minecraft:logs"}]
-/give @p cell4:infinity_modid_cell[custom_data={cell4modid:"mekanism"}]
+/give @p cell4:infinity_item_cell{cell4item:"minecraft:diamond"}
+/give @p cell4:infinity_tag_cell{cell4tag:"minecraft:logs"}
+/give @p cell4:infinity_modid_cell{cell4modid:"mekanism"}
 ```
 
 ### 多值
 
 ```
-/give @p cell4:infinity_item_cell[custom_data={cell4item:["minecraft:diamond","minecraft:oak_log"]}]
-/give @p cell4:infinity_tag_cell[custom_data={cell4tag:["minecraft:logs","c:ingots/iron"]}]
-/give @p cell4:infinity_modid_cell[custom_data={cell4modid:["mekanism","thermal"]}]
+/give @p cell4:infinity_item_cell{cell4item:["minecraft:diamond","minecraft:oak_log"]}
+/give @p cell4:infinity_tag_cell{cell4tag:["minecraft:logs","forge:ingots/iron"]}
+/give @p cell4:infinity_modid_cell{cell4modid:["mekanism","thermal"]}
 ```
 
 ### 标签元件 + 模组ID过滤
@@ -67,8 +67,8 @@ Cell⁴是一个为整合包开发设计的AE2附属模组. 它添加了三种**
 标签元件同时支持 `cell4tag` 和 `cell4modid`:
 
 ```
-/give @p cell4:infinity_tag_cell[custom_data={cell4tag:"minecraft:logs",cell4modid:"mekanism"}]
-/give @p cell4:infinity_tag_cell[custom_data={cell4tag:["minecraft:logs","c:ingots/iron"],cell4modid:["mekanism","thermal"]}]
+/give @p cell4:infinity_tag_cell{cell4tag:"minecraft:logs",cell4modid:"mekanism"}
+/give @p cell4:infinity_tag_cell{cell4tag:["minecraft:logs","forge:ingots/iron"],cell4modid:["mekanism","thermal"]}
 ```
 
 ### 黑名单
@@ -79,8 +79,8 @@ Cell⁴是一个为整合包开发设计的AE2附属模组. 它添加了三种**
 - **模组ID** — 加 `@` 前缀 (如 `@mekanism`)
 
 ```
-/give @p cell4:infinity_tag_cell[custom_data={cell4tag:"minecraft:logs",cell4blacklist:"minecraft:birch_log"}]
-/give @p cell4:infinity_modid_cell[custom_data={cell4modid:"mekanism",cell4blacklist:["mekanism:steel_ingot","#c:ingots/steel","@thermal"]}]
+/give @p cell4:infinity_tag_cell{cell4tag:"minecraft:logs",cell4blacklist:"minecraft:birch_log"}
+/give @p cell4:infinity_modid_cell{cell4modid:"mekanism",cell4blacklist:["mekanism:steel_ingot","#forge:ingots/steel","@thermal"]}
 ```
 
 黑名单物品会在元件tooltip中以✖标记显示.
@@ -97,9 +97,9 @@ Cell⁴是一个为整合包开发设计的AE2附属模组. 它添加了三种**
 
 | 依赖 | 版本 |
 |-----|------|
-| Minecraft | 1.21.1 |
-| NeoForge | 21.1.169+ |
-| Applied Energistics 2 | 19.0.0 - 19.x |
+| Minecraft | 1.20.1 |
+| Forge | 47.1.0+ |
+| Applied Energistics 2 | 15.0.0 - 15.x |
 
 ## 致谢
 
