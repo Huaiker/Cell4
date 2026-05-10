@@ -20,7 +20,9 @@ Cell⁴ is an AE2 addon designed for modpack development. It adds three types of
 
 The **Cell Configurator** is an in-game tool for editing cell data visually. Right-click while holding it to open the configuration GUI, then place a cell into the slot.
 
-![Cell Configurator Usage](AAA)
+![Cell Configurator Usage](exampleConfiguratorUsage1)
+![Cell Configurator Usage](exampleConfiguratorUsage2)
+![Cell Configurator Usage](exampleConfiguratorUsage3)
 
 - Editable fields change based on the cell type placed in the slot.
 - Inactive fields are shown in gray and cannot be edited.
