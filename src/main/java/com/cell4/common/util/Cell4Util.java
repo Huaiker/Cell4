@@ -7,6 +7,7 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.StringTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.ItemStack;
@@ -15,40 +16,29 @@ import net.minecraft.world.level.material.Fluids;
 
 import java.util.*;
 
-/**
- * Shared NBT utility for Cell⁴.
- * Provides parsing of the blacklist NBT key and string list format.
- * In 1.21.1, item NBT is stored via DataComponents.CUSTOM_DATA.
- */
 public class Cell4Util {
 
-    public static final String BLACKLIST_KEY = "cell4blacklist";
+    // Keep backward compatibility alias
+    public static final String BLACKLIST_KEY = NBTKeys.BLACKLIST;
 
-    /**
-     * Get the custom data CompoundTag from an ItemStack (1.21.1 data component system).
-     */
     public static CompoundTag getCustomTag(ItemStack stack) {
         CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
         return customData != null ? customData.copyTag() : new CompoundTag();
     }
 
-    /**
-     * Set the custom data CompoundTag on an ItemStack (1.21.1 data component system).
-     */
     public static void setCustomTag(ItemStack stack, CompoundTag tag) {
         stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
     }
 
     /**
-     * BlacklistData holds three types of blacklist entries:
-     * - Plain identifier (e.g. "minecraft:diamond") → item/fluid blacklist
-     * - "#" prefix (e.g. "#minecraft:logs") → tag blacklist
-     * - "@" prefix (e.g. "@mekanism") → mod ID blacklist
+     * BlacklistData holds three types of blacklist entries with tag caching (2.3).
      */
     public static class BlacklistData {
         private final Set<AEKey> itemKeys;
         private final List<String> tagNames;
         private final Set<String> modIds;
+        // 2.3: Cache for tag blacklist matching results
+        private Map<String, Boolean> tagMatchCache = new HashMap<>();
 
         public BlacklistData(Set<AEKey> itemKeys, List<String> tagNames, Set<String> modIds) {
             this.itemKeys = itemKeys;
@@ -56,35 +46,26 @@ public class Cell4Util {
             this.modIds = modIds;
         }
 
-        public Set<AEKey> getItemKeys() {
-            return itemKeys;
-        }
+        public Set<AEKey> getItemKeys() { return itemKeys; }
+        public List<String> getTagNames() { return tagNames; }
+        public Set<String> getModIds() { return modIds; }
 
-        public List<String> getTagNames() {
-            return tagNames;
-        }
-
-        public Set<String> getModIds() {
-            return modIds;
-        }
-
-        /**
-         * Check if a given AEKey is blacklisted by any of the three blacklist types.
-         */
         public boolean isBlacklisted(AEKey key) {
-            // Check plain item/fluid blacklist
-            if (itemKeys.contains(key)) {
-                return true;
-            }
+            if (itemKeys.contains(key)) return true;
 
-            // Check tag blacklist
+            // 2.3: Use cached tag matching
             for (String tagName : tagNames) {
-                if (matchesTagBlacklist(key, tagName)) {
-                    return true;
+                String cacheKey = key.toString() + "|" + tagName;
+                Boolean cached = tagMatchCache.get(cacheKey);
+                if (cached != null) {
+                    if (cached) return true;
+                } else {
+                    boolean matches = matchesTagBlacklist(key, tagName);
+                    tagMatchCache.put(cacheKey, matches);
+                    if (matches) return true;
                 }
             }
 
-            // Check mod ID blacklist
             if (!modIds.isEmpty()) {
                 ResourceLocation rl = null;
                 if (key instanceof AEItemKey itemKey) {
@@ -92,36 +73,24 @@ public class Cell4Util {
                 } else if (key instanceof AEFluidKey fluidKey) {
                     rl = BuiltInRegistries.FLUID.getKey(fluidKey.getFluid());
                 }
-                if (rl != null && modIds.contains(rl.getNamespace())) {
-                    return true;
-                }
+                if (rl != null && modIds.contains(rl.getNamespace())) return true;
             }
 
             return false;
         }
 
-        /**
-         * Check if all blacklist types are empty.
-         */
         public boolean isEmpty() {
             return itemKeys.isEmpty() && tagNames.isEmpty() && modIds.isEmpty();
         }
     }
 
-    /**
-     * Parse blacklist data from an ItemStack's custom data.
-     * Supports three types of entries:
-     * - Plain identifier → item/fluid key
-     * - "#" prefix → tag blacklist
-     * - "@" prefix → mod ID blacklist
-     */
     public static BlacklistData getBlacklistData(ItemStack stack) {
         CompoundTag tag = getCustomTag(stack);
-        if (!tag.contains(BLACKLIST_KEY)) {
+        if (!tag.contains(NBTKeys.BLACKLIST)) {
             return new BlacklistData(Collections.emptySet(), Collections.emptyList(), Collections.emptySet());
         }
 
-        List<String> ids = parseStringList(tag, BLACKLIST_KEY);
+        List<String> ids = parseStringList(tag, NBTKeys.BLACKLIST);
         if (ids.isEmpty()) {
             return new BlacklistData(Collections.emptySet(), Collections.emptyList(), Collections.emptySet());
         }
@@ -132,26 +101,16 @@ public class Cell4Util {
 
         for (String id : ids) {
             if (id.startsWith("#")) {
-                // Tag blacklist
                 String tagName = id.substring(1);
-                if (!tagName.isEmpty()) {
-                    tagNames.add(tagName);
-                }
+                if (!tagName.isEmpty()) tagNames.add(tagName);
             } else if (id.startsWith("@")) {
-                // Mod ID blacklist
                 String modId = id.substring(1);
-                if (!modId.isEmpty()) {
-                    modIds.add(modId);
-                }
+                if (!modId.isEmpty()) modIds.add(modId);
             } else {
-                // Plain identifier → item/fluid key
                 ResourceLocation rl = ResourceLocation.tryParse(id);
                 if (rl != null) {
                     var item = BuiltInRegistries.ITEM.getOptional(rl);
-                    if (item.isPresent()) {
-                        itemKeys.add(AEItemKey.of(item.get()));
-                        continue;
-                    }
+                    if (item.isPresent()) { itemKeys.add(AEItemKey.of(item.get())); continue; }
                     var fluid = BuiltInRegistries.FLUID.getOptional(rl);
                     if (fluid.isPresent() && fluid.get() != Fluids.EMPTY) {
                         itemKeys.add(AEFluidKey.of(fluid.get()));
@@ -163,71 +122,74 @@ public class Cell4Util {
         return new BlacklistData(itemKeys, tagNames, modIds);
     }
 
-    /**
-     * Legacy method: returns only the item/fluid keys from blacklist data.
-     */
     public static Set<AEKey> getBlacklistKeys(ItemStack stack) {
         return getBlacklistData(stack).getItemKeys();
     }
 
-    /**
-     * Get blacklist identifier strings from an ItemStack's custom data.
-     */
     public static List<String> getBlacklistIds(ItemStack stack) {
         CompoundTag tag = getCustomTag(stack);
-        if (!tag.contains(BLACKLIST_KEY)) {
-            return Collections.emptyList();
-        }
-        return parseStringList(tag, BLACKLIST_KEY);
+        if (!tag.contains(NBTKeys.BLACKLIST)) return Collections.emptyList();
+        return parseStringList(tag, NBTKeys.BLACKLIST);
     }
 
-    /**
-     * Parse a string list from NBT, supporting both single string and list formats.
-     */
     public static List<String> parseStringList(CompoundTag tag, String key) {
-        if (!tag.contains(key)) {
-            return Collections.emptyList();
-        }
-
-        // List format: {key:["a","b","c"]}
+        if (!tag.contains(key)) return Collections.emptyList();
         if (tag.get(key) instanceof ListTag listTag) {
             List<String> result = new ArrayList<>(listTag.size());
             for (int i = 0; i < listTag.size(); i++) {
                 String str = listTag.getString(i);
-                if (!str.isEmpty()) {
-                    result.add(str);
-                }
+                if (!str.isEmpty()) result.add(str);
             }
             return result;
         }
-
-        // Single string format: {key:"a"}
         String single = tag.getString(key);
-        if (!single.isEmpty()) {
-            return Collections.singletonList(single);
-        }
-
+        if (!single.isEmpty()) return Collections.singletonList(single);
         return Collections.emptyList();
     }
 
-    /**
-     * Check if a given AEKey matches a specific tag blacklist entry.
-     * Supports both AEItemKey and AEFluidKey.
-     */
+    // === Shared NBT list get/set for cell data fields ===
+
+    public static List<String> getStringList(ItemStack stack, String nbtKey) {
+        CompoundTag tag = getCustomTag(stack);
+        if (!tag.contains(nbtKey)) return Collections.emptyList();
+        return parseStringList(tag, nbtKey);
+    }
+
+    public static void setStringList(ItemStack stack, String nbtKey, List<String> values) {
+        CompoundTag tag = getCustomTag(stack);
+        ListTag listTag = new ListTag();
+        for (String val : values) listTag.add(StringTag.valueOf(val));
+        tag.put(nbtKey, listTag);
+        setCustomTag(stack, tag);
+    }
+
+    public static void setStringValue(ItemStack stack, String nbtKey, String value) {
+        CompoundTag tag = getCustomTag(stack);
+        tag.putString(nbtKey, value);
+        setCustomTag(stack, tag);
+    }
+
+    public static boolean belongsToMod(AEKey key, Set<String> modIdSet) {
+        if (key instanceof AEItemKey itemKey) {
+            ResourceLocation rl = BuiltInRegistries.ITEM.getKey(itemKey.getItem());
+            return rl != null && modIdSet.contains(rl.getNamespace());
+        } else if (key instanceof AEFluidKey fluidKey) {
+            ResourceLocation rl = BuiltInRegistries.FLUID.getKey(fluidKey.getFluid());
+            return rl != null && modIdSet.contains(rl.getNamespace());
+        }
+        return false;
+    }
+
     private static boolean matchesTagBlacklist(AEKey key, String tagName) {
         ResourceLocation tagRL = ResourceLocation.tryParse(tagName);
         if (tagRL == null) return false;
-
         if (key instanceof AEItemKey itemKey) {
-            TagKey<net.minecraft.world.item.Item> itemTag = TagKey.create(
-                    BuiltInRegistries.ITEM.key(), tagRL);
+            TagKey<net.minecraft.world.item.Item> itemTag = TagKey.create(BuiltInRegistries.ITEM.key(), tagRL);
             return itemKey.getItem().builtInRegistryHolder().is(itemTag);
         } else if (key instanceof AEFluidKey fluidKey) {
-            TagKey<net.minecraft.world.level.material.Fluid> fluidTag = TagKey.create(
-                    BuiltInRegistries.FLUID.key(), tagRL);
+            TagKey<net.minecraft.world.level.material.Fluid> fluidTag = TagKey.create(BuiltInRegistries.FLUID.key(), tagRL);
             return fluidKey.getFluid().builtInRegistryHolder().is(fluidTag);
         }
-
         return false;
     }
 }

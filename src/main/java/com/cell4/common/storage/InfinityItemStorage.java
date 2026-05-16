@@ -1,11 +1,9 @@
 package com.cell4.common.storage;
 
-import appeng.api.config.Actionable;
-import appeng.api.networking.security.IActionSource;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.KeyCounter;
-import appeng.api.storage.cells.StorageCell;
-import appeng.api.storage.cells.CellState;
+import appeng.api.stacks.GenericStack;
+import com.cell4.common.item.IInfinityCell;
 import com.cell4.common.item.InfinityItemCell;
 import com.cell4.common.util.Cell4Util;
 import net.minecraft.network.chat.Component;
@@ -21,72 +19,49 @@ import java.util.stream.Collectors;
  * Insertion of matching keys is accepted but items are silently discarded (phantom storage).
  * Supports blacklist via cell4blacklist NBT key.
  */
-public class InfinityItemStorage implements StorageCell {
+public class InfinityItemStorage extends AbstractInfinityStorage {
 
     private final List<AEKey> recordKeys;
     private final Set<AEKey> recordKeySet;
-    private final Cell4Util.BlacklistData blacklist;
+    private KeyCounter cachedAvailableStacks;
+    private boolean cacheValid = false;
 
     public InfinityItemStorage(ItemStack cellItem) {
+        super(cellItem);
         this.recordKeys = InfinityItemCell.getRecords(cellItem);
         this.recordKeySet = recordKeys.stream().collect(Collectors.toSet());
-        this.blacklist = Cell4Util.getBlacklistData(cellItem);
     }
 
     @Override
-    public long insert(AEKey what, long amount, Actionable mode, IActionSource source) {
-        // Accept matching keys but silently discard them (phantom storage sink)
-        // Exclude blacklisted keys
-        if (recordKeySet.contains(what) && !blacklist.isBlacklisted(what)) {
-            return amount;
-        }
-        return 0;
+    protected boolean matchesFilter(AEKey what) {
+        return recordKeySet.contains(what);
     }
 
     @Override
-    public boolean isPreferredStorageFor(AEKey what, IActionSource source) {
-        // Tell AE2 to route matching items to this cell first
-        // Exclude blacklisted keys
-        return recordKeySet.contains(what) && !blacklist.isBlacklisted(what);
-    }
-
-    @Override
-    public long extract(AEKey what, long amount, Actionable mode, IActionSource source) {
-        // Allow infinite extraction of the recorded keys only
-        // Exclude blacklisted keys
-        if (recordKeySet.contains(what) && !blacklist.isBlacklisted(what)) {
-            return amount;
-        }
-        return 0;
+    protected boolean hasConfiguration() {
+        return !recordKeys.isEmpty();
     }
 
     @Override
     public void getAvailableStacks(KeyCounter out) {
-        // Show all recorded keys with infinite amounts, excluding blacklisted
-        for (AEKey key : recordKeys) {
-            if (!blacklist.isBlacklisted(key)) {
-                out.add(key, InfinityItemCell.getAsIntMax(key));
+        // 2.2: Lazy-load and cache available stacks
+        if (!cacheValid) {
+            cachedAvailableStacks = new KeyCounter();
+            for (AEKey key : recordKeys) {
+                if (!blacklist.isBlacklisted(key)) {
+                    cachedAvailableStacks.add(key, IInfinityCell.getAsIntMax(key));
+                }
             }
+            cacheValid = true;
+        }
+        // Copy cached data to output
+        for (var entry : cachedAvailableStacks) {
+            out.add(entry.getKey(), entry.getLongValue());
         }
     }
 
     @Override
     public Component getDescription() {
         return Component.translatable("item.cell4.infinity_item_cell");
-    }
-
-    @Override
-    public CellState getStatus() {
-        return recordKeys.isEmpty() ? CellState.EMPTY : CellState.NOT_EMPTY;
-    }
-
-    @Override
-    public double getIdleDrain() {
-        return 0.0;
-    }
-
-    @Override
-    public void persist() {
-        // No persistence needed - the cell is always infinite
     }
 }

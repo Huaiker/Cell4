@@ -17,5 +17,11 @@ public class Cell4Network {
             CellConfigSavePacket.STREAM_CODEC,
             CellConfigSavePacket::handle
         );
+        // 4.4: Register S2C response packet
+        registrar.playToClient(
+            CellConfigResponsePacket.TYPE,
+            CellConfigResponsePacket.STREAM_CODEC,
+            CellConfigResponsePacket::handle
+        );
     }
 }

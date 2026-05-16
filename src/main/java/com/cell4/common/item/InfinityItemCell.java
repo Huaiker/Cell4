@@ -10,11 +10,9 @@ import appeng.items.AEBaseItem;
 import appeng.items.storage.StorageCellTooltipComponent;
 import com.cell4.common.registration.Cell4Items;
 import com.cell4.common.util.Cell4Util;
+import com.cell4.common.util.NBTKeys;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.StringTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.tooltip.TooltipComponent;
@@ -28,65 +26,44 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
-/**
- * Infinity Item Cell - can infinitely extract specific items, fluids, or other AE2 key types.
- * <p>
- * Binding is done purely via NBT (stored in custom data component in 1.21.1).
- * Supports both single-value and list formats:
- * /give @p cell4:infinity_item_cell{custom_data:{cell4item:"minecraft:diamond"}}
- * /give @p cell4:infinity_item_cell{custom_data:{cell4item:["minecraft:diamond","minecraft:oak_log"]}}
- * </p>
- * <p>
- * This class references the design of ExtendAE's InfinityCell
- * (com.glodblock.github.extendedae.common.items.InfinityCell).
- * The getAsIntMax method follows the same pattern.
- * </p>
- */
-public class InfinityItemCell extends AEBaseItem implements ICellWorkbenchItem {
-
-    private static final String NBT_KEY = "cell4item";
+public class InfinityItemCell extends AEBaseItem implements ICellWorkbenchItem, IInfinityCell {
 
     public InfinityItemCell(Properties properties) {
         super(properties.stacksTo(1));
     }
 
-    /**
-     * Get item/fluid identifier strings from NBT.
-     * Supports both single string (legacy) and list format.
-     */
+    // IInfinityCell implementation
+    @Override
+    public CellType getCellType() { return CellType.ITEM; }
+
+    @Override
+    public String translationKey() { return "item.cell4.infinity_item_cell"; }
+
+    @Override
+    public boolean canEditItem() { return true; }
+
+    @Override
+    public String getCustomName(ItemStack stack) { return IInfinityCell.super.getCustomName(stack); }
+
+    @Override
+    public void setCustomName(ItemStack stack, String name) { IInfinityCell.super.setCustomName(stack, name); }
+
     @NotNull
     public static List<String> getIdentifiers(ItemStack stack) {
-        CompoundTag tag = Cell4Util.getCustomTag(stack);
-        if (!tag.contains(NBT_KEY)) {
-            return Collections.emptyList();
-        }
-        return Cell4Util.parseStringList(tag, NBT_KEY);
+        return Cell4Util.getStringList(stack, NBTKeys.ITEM);
     }
 
-    /**
-     * Parse identifier strings into AEKeys.
-     * Tries item registry first, then fluid registry for each identifier.
-     */
     @NotNull
     public static List<AEKey> getRecords(ItemStack stack) {
         List<String> ids = getIdentifiers(stack);
-        if (ids.isEmpty()) {
-            return Collections.emptyList();
-        }
-
+        if (ids.isEmpty()) return Collections.emptyList();
         List<AEKey> keys = new ArrayList<>(ids.size());
         for (String id : ids) {
             ResourceLocation rl = ResourceLocation.tryParse(id);
             if (rl != null) {
-                // Try as item
                 var item = BuiltInRegistries.ITEM.getOptional(rl);
-                if (item.isPresent()) {
-                    keys.add(AEItemKey.of(item.get()));
-                    continue;
-                }
-                // Try as fluid
+                if (item.isPresent()) { keys.add(AEItemKey.of(item.get())); continue; }
                 var fluid = BuiltInRegistries.FLUID.getOptional(rl);
                 if (fluid.isPresent() && fluid.get() != Fluids.EMPTY) {
                     keys.add(AEFluidKey.of(fluid.get()));
@@ -96,31 +73,14 @@ public class InfinityItemCell extends AEBaseItem implements ICellWorkbenchItem {
         return keys;
     }
 
-    /**
-     * Set identifiers using list format on an existing cell ItemStack.
-     */
     public static void setIdentifiers(ItemStack stack, List<String> ids) {
-        CompoundTag tag = Cell4Util.getCustomTag(stack);
-        ListTag listTag = new ListTag();
-        for (String id : ids) {
-            listTag.add(StringTag.valueOf(id));
-        }
-        tag.put(NBT_KEY, listTag);
-        Cell4Util.setCustomTag(stack, tag);
+        Cell4Util.setStringList(stack, NBTKeys.ITEM, ids);
     }
 
-    /**
-     * Set a single identifier (legacy format) on an existing cell ItemStack.
-     */
     public static void setIdentifier(ItemStack stack, String id) {
-        CompoundTag tag = Cell4Util.getCustomTag(stack);
-        tag.putString(NBT_KEY, id);
-        Cell4Util.setCustomTag(stack, tag);
+        Cell4Util.setStringValue(stack, NBTKeys.ITEM, id);
     }
 
-    /**
-     * Create a new Infinity Item Cell bound to the specified registry names.
-     */
     public ItemStack createStack(List<String> identifiers) {
         var stack = new ItemStack(Cell4Items.INFINITY_ITEM_CELL.get());
         setIdentifiers(stack, identifiers);
@@ -129,7 +89,7 @@ public class InfinityItemCell extends AEBaseItem implements ICellWorkbenchItem {
 
     @Override
     public @NotNull Component getName(@NotNull ItemStack is) {
-        return Component.translatable("item.cell4.infinity_item_cell");
+        return IInfinityCell.super.getDisplayName(is);
     }
 
     @Override
@@ -139,16 +99,7 @@ public class InfinityItemCell extends AEBaseItem implements ICellWorkbenchItem {
         if (ids.size() > 1) {
             lines.add(Component.translatable("tooltip.cell4.item_count", ids.size()).withStyle(ChatFormatting.AQUA));
         }
-        Cell4Util.BlacklistData blacklist = Cell4Util.getBlacklistData(is);
-        for (AEKey key : blacklist.getItemKeys()) {
-            lines.add(Component.translatable("tooltip.cell4.blacklist_item", key.getDisplayName()).withStyle(ChatFormatting.RED));
-        }
-        for (String tagName : blacklist.getTagNames()) {
-            lines.add(Component.translatable("tooltip.cell4.blacklist_tag", tagName).withStyle(ChatFormatting.RED));
-        }
-        for (String modId : blacklist.getModIds()) {
-            lines.add(Component.translatable("tooltip.cell4.blacklist_modid", modId).withStyle(ChatFormatting.RED));
-        }
+        appendBlacklistTooltip(is, lines);
     }
 
     @NotNull
@@ -156,40 +107,19 @@ public class InfinityItemCell extends AEBaseItem implements ICellWorkbenchItem {
     public Optional<TooltipComponent> getTooltipImage(@NotNull ItemStack stack) {
         List<AEKey> records = getRecords(stack);
         Cell4Util.BlacklistData blacklist = Cell4Util.getBlacklistData(stack);
-        if (records.isEmpty()) {
-            return Optional.empty();
-        }
+        if (records.isEmpty()) return Optional.empty();
         List<GenericStack> content = new ArrayList<>(records.size());
         for (AEKey key : records) {
             if (!blacklist.isBlacklisted(key)) {
-                content.add(new GenericStack(key, getAsIntMax(key)));
+                content.add(new GenericStack(key, IInfinityCell.getAsIntMax(key)));
             }
         }
-        if (content.isEmpty()) {
-            return Optional.empty();
-        }
+        if (content.isEmpty()) return Optional.empty();
         return Optional.of(new StorageCellTooltipComponent(List.of(), content, false, true));
     }
 
     @Override
-    public FuzzyMode getFuzzyMode(ItemStack itemStack) {
-        return FuzzyMode.IGNORE_ALL;
-    }
-
+    public FuzzyMode getFuzzyMode(ItemStack itemStack) { return IInfinityCell.super.getFuzzyMode(itemStack); }
     @Override
-    public void setFuzzyMode(ItemStack itemStack, FuzzyMode fuzzyMode) {
-        // NO-OP
-    }
-
-    /**
-     * Get the maximum display amount for a given AEKey type.
-     * Items use Integer.MAX_VALUE, fluids use Integer.MAX_VALUE * AMOUNT_BUCKET.
-     * This follows the same pattern as ExtendAE's InfinityCell.getAsIntMax().
-     */
-    public static long getAsIntMax(AEKey key) {
-        if (key instanceof AEFluidKey) {
-            return (long) Integer.MAX_VALUE * AEFluidKey.AMOUNT_BUCKET;
-        }
-        return Integer.MAX_VALUE;
-    }
+    public void setFuzzyMode(ItemStack itemStack, FuzzyMode fuzzyMode) { IInfinityCell.super.setFuzzyMode(itemStack, fuzzyMode); }
 }
