@@ -1,6 +1,8 @@
 package com.cell4.common.registration;
 
 import com.cell4.Cell4;
+import com.cell4.common.item.IInfinityCell;
+import com.cell4.common.item.InfinityItemCell;
 import com.cell4.common.item.InfinityModIdCell;
 import com.cell4.common.item.InfinityTagCell;
 import net.minecraft.core.registries.Registries;
@@ -33,17 +35,21 @@ public class Cell4CreativeTab {
                                 // Preset: minecraft:logs tag cell
                                 ItemStack logsTagCell = new ItemStack(Cell4Items.INFINITY_TAG_CELL.get());
                                 InfinityTagCell.setTagNames(logsTagCell, List.of("minecraft:logs"));
+                                ((IInfinityCell) Cell4Items.INFINITY_TAG_CELL.get()).setCustomName(logsTagCell, "All Logs");
                                 output.accept(logsTagCell);
 
                                 // Preset: minecraft modid cell
                                 ItemStack minecraftModidCell = new ItemStack(Cell4Items.INFINITY_MODID_CELL.get());
                                 InfinityModIdCell.setModIds(minecraftModidCell, List.of("minecraft"));
+                                ((IInfinityCell) Cell4Items.INFINITY_MODID_CELL.get()).setCustomName(minecraftModidCell, "All Vanilla");
                                 output.accept(minecraftModidCell);
 
-                                // Preset: fluid tag cell (water)
-                                ItemStack fluidTagCell = new ItemStack(Cell4Items.INFINITY_TAG_CELL.get());
-                                InfinityTagCell.setTagNames(fluidTagCell, List.of("minecraft:water"));
-                                output.accept(fluidTagCell);
+                                // 6.1: Fix: minecraft:water is not a tag name, it's a fluid registry name.
+                                // Use an Infinity Item Cell instead for water.
+                                ItemStack waterCell = new ItemStack(Cell4Items.INFINITY_ITEM_CELL.get());
+                                InfinityItemCell.setIdentifier(waterCell, "minecraft:water");
+                                ((IInfinityCell) Cell4Items.INFINITY_ITEM_CELL.get()).setCustomName(waterCell, "Water");
+                                output.accept(waterCell);
                             })
                             .build()
             );

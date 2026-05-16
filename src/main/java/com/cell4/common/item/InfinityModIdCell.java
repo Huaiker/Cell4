@@ -8,12 +8,9 @@ import appeng.api.storage.cells.ICellWorkbenchItem;
 import appeng.items.AEBaseItem;
 import appeng.items.storage.StorageCellTooltipComponent;
 import com.cell4.common.util.Cell4Util;
+import com.cell4.common.util.NBTKeys;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.StringTag;
-import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.tooltip.TooltipComponent;
@@ -23,11 +20,7 @@ import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Infinity ModID Cell - can infinitely extract any item/fluid from specified mods.
@@ -37,12 +30,30 @@ import java.util.Set;
  * /give @p cell4:infinity_modid_cell{cell4modid:["mekanism","thermal"]}
  * </p>
  */
-public class InfinityModIdCell extends AEBaseItem implements ICellWorkbenchItem {
-
-    private static final String NBT_KEY = "cell4modid";
+public class InfinityModIdCell extends AEBaseItem implements ICellWorkbenchItem, IInfinityCell {
 
     public InfinityModIdCell() {
         super(new Item.Properties().stacksTo(1));
+    }
+
+    // IInfinityCell implementation
+    @Override
+    public CellType getCellType() { return CellType.MODID; }
+
+    @Override
+    public String translationKey() { return "item.cell4.infinity_modid_cell"; }
+
+    @Override
+    public boolean canEditModId() { return true; }
+
+    @Override
+    public String getCustomName(ItemStack stack) {
+        return IInfinityCell.super.getCustomName(stack);
+    }
+
+    @Override
+    public void setCustomName(ItemStack stack, String name) {
+        IInfinityCell.super.setCustomName(stack, name);
     }
 
     /**
@@ -51,44 +62,15 @@ public class InfinityModIdCell extends AEBaseItem implements ICellWorkbenchItem 
      */
     @NotNull
     public static List<String> getModIds(ItemStack stack) {
-        var tag = stack.getTag();
-        if (tag == null || !tag.contains(NBT_KEY)) {
-            return Collections.emptyList();
-        }
-
-        // List format: {cell4modid:["mekanism","thermal"]}
-        if (tag.get(NBT_KEY) instanceof ListTag listTag) {
-            List<String> result = new ArrayList<>(listTag.size());
-            for (int i = 0; i < listTag.size(); i++) {
-                String str = listTag.getString(i);
-                if (!str.isEmpty()) {
-                    result.add(str);
-                }
-            }
-            return result;
-        }
-
-        // Legacy single string format: {cell4modid:"mekanism"}
-        String single = tag.getString(NBT_KEY);
-        if (!single.isEmpty()) {
-            return Collections.singletonList(single);
-        }
-
-        return Collections.emptyList();
+        return Cell4Util.getStringList(stack, NBTKeys.MODID);
     }
 
     public static void setModIds(ItemStack stack, List<String> modIds) {
-        var tag = stack.getOrCreateTag();
-        ListTag listTag = new ListTag();
-        for (String id : modIds) {
-            listTag.add(StringTag.valueOf(id));
-        }
-        tag.put(NBT_KEY, listTag);
+        Cell4Util.setStringList(stack, NBTKeys.MODID, modIds);
     }
 
     public static void setModId(ItemStack stack, String modId) {
-        var tag = stack.getOrCreateTag();
-        tag.putString(NBT_KEY, modId);
+        Cell4Util.setStringValue(stack, NBTKeys.MODID, modId);
     }
 
     public static boolean hasModIds(ItemStack stack) {
@@ -97,7 +79,7 @@ public class InfinityModIdCell extends AEBaseItem implements ICellWorkbenchItem 
 
     @Override
     public @NotNull Component getName(@NotNull ItemStack is) {
-        return Component.translatable("item.cell4.infinity_modid_cell");
+        return IInfinityCell.super.getDisplayName(is);
     }
 
     @Override
@@ -108,17 +90,23 @@ public class InfinityModIdCell extends AEBaseItem implements ICellWorkbenchItem 
             lines.add(Component.translatable("tooltip.cell4.modid_filter", id).withStyle(ChatFormatting.LIGHT_PURPLE));
         }
 
-        // Show blacklist entries with all types
+        // 6.3: Show total count and "more" indicator
+        int total = 0;
+        Set<String> modIdSet = Set.copyOf(modIds);
         Cell4Util.BlacklistData blacklist = Cell4Util.getBlacklistData(is);
-        for (AEKey key : blacklist.getItemKeys()) {
-            lines.add(Component.translatable("tooltip.cell4.blacklist_item", key.getDisplayName()).withStyle(ChatFormatting.RED));
+        for (var item : BuiltInRegistries.ITEM) {
+            ResourceLocation rl = BuiltInRegistries.ITEM.getKey(item);
+            if (rl != null && modIdSet.contains(rl.getNamespace())) {
+                var key = AEItemKey.of(item);
+                if (key != null && !blacklist.isBlacklisted(key)) total++;
+            }
         }
-        for (String tagName : blacklist.getTagNames()) {
-            lines.add(Component.translatable("tooltip.cell4.blacklist_tag", tagName).withStyle(ChatFormatting.RED));
+        if (total > 18) {
+            lines.add(Component.translatable("tooltip.cell4.more_items", total - 18).withStyle(ChatFormatting.GRAY));
         }
-        for (String modId : blacklist.getModIds()) {
-            lines.add(Component.translatable("tooltip.cell4.blacklist_modid", modId).withStyle(ChatFormatting.RED));
-        }
+
+        // Show blacklist entries
+        appendBlacklistTooltip(is, lines);
     }
 
     @NotNull
@@ -147,18 +135,18 @@ public class InfinityModIdCell extends AEBaseItem implements ICellWorkbenchItem 
 
         List<GenericStack> content = new ArrayList<>(previewItems.size());
         for (AEItemKey key : previewItems) {
-            content.add(new GenericStack(key, Integer.MAX_VALUE));
+            content.add(new GenericStack(key, IInfinityCell.getAsIntMax(key)));
         }
         return Optional.of(new StorageCellTooltipComponent(List.of(), content, false, true));
     }
 
     @Override
     public FuzzyMode getFuzzyMode(ItemStack itemStack) {
-        return FuzzyMode.IGNORE_ALL;
+        return IInfinityCell.super.getFuzzyMode(itemStack);
     }
 
     @Override
     public void setFuzzyMode(ItemStack itemStack, FuzzyMode fuzzyMode) {
-        // NO-OP
+        IInfinityCell.super.setFuzzyMode(itemStack, fuzzyMode);
     }
 }

@@ -1,5 +1,6 @@
 package com.cell4.common.menu;
 
+import com.cell4.common.item.IInfinityCell;
 import com.cell4.common.item.InfinityItemCell;
 import com.cell4.common.item.InfinityModIdCell;
 import com.cell4.common.item.InfinityTagCell;
@@ -14,8 +15,8 @@ import net.minecraft.world.item.ItemStack;
 
 public class CellConfiguratorMenu extends AbstractContainerMenu {
 
-    private static final int PLAYER_INV_X = 47;
-    private static final int PLAYER_INV_Y = 173;
+    private static final int PLAYER_INV_X = 64;
+    private static final int PLAYER_INV_Y = 192;
 
     private final Container cellContainer;
     private final Inventory playerInventory;
@@ -41,8 +42,8 @@ public class CellConfiguratorMenu extends AbstractContainerMenu {
             }
         };
 
-        // Cell input slot (20x20 visual, item at x=8, y=22 in GUI space)
-        this.addSlot(new Slot(this.cellContainer, 0, 8, 22) {
+        // Cell input slot (moved x+1 to the right)
+        this.addSlot(new Slot(this.cellContainer, 0, 9, 23) {
             @Override
             public boolean mayPlace(ItemStack stack) {
                 return isValidCell(stack);
@@ -92,6 +93,8 @@ public class CellConfiguratorMenu extends AbstractContainerMenu {
                     if (!this.moveItemStackTo(slotStack, 0, 1, false)) {
                         return ItemStack.EMPTY;
                     }
+                } else {
+                    return ItemStack.EMPTY; // Not a valid cell - prevent infinite loop
                 }
             }
 
@@ -105,13 +108,18 @@ public class CellConfiguratorMenu extends AbstractContainerMenu {
         return result;
     }
 
+    // 6.4: Fix item loss when player inventory is full
     @Override
     public void removed(Player player) {
         super.removed(player);
         if (!player.level().isClientSide) {
             ItemStack cellStack = this.cellContainer.getItem(0);
             if (!cellStack.isEmpty()) {
-                player.getInventory().add(cellStack);
+                // Try to add to player inventory first
+                if (!player.getInventory().add(cellStack)) {
+                    // If inventory is full, drop the item at player's location
+                    player.drop(cellStack, false);
+                }
                 this.cellContainer.setItem(0, ItemStack.EMPTY);
             }
         }
@@ -125,27 +133,33 @@ public class CellConfiguratorMenu extends AbstractContainerMenu {
         return this.cellContainer;
     }
 
+    // 3.2: Use IInfinityCell interface methods instead of instanceof
     public static boolean canEditCell4Item(ItemStack stack) {
-        return stack.getItem() instanceof InfinityItemCell;
+        if (stack.getItem() instanceof IInfinityCell cell) return cell.canEditItem();
+        return false;
     }
 
     public static boolean canEditCell4Tag(ItemStack stack) {
-        return stack.getItem() instanceof InfinityTagCell;
+        if (stack.getItem() instanceof IInfinityCell cell) return cell.canEditTag();
+        return false;
     }
 
     public static boolean canEditCell4ModId(ItemStack stack) {
-        return stack.getItem() instanceof InfinityTagCell || stack.getItem() instanceof InfinityModIdCell;
+        if (stack.getItem() instanceof IInfinityCell cell) return cell.canEditModId();
+        return false;
     }
 
     public static boolean canEditBlacklist(ItemStack stack) {
-        return stack.getItem() instanceof InfinityItemCell
-            || stack.getItem() instanceof InfinityTagCell
-            || stack.getItem() instanceof InfinityModIdCell;
+        if (stack.getItem() instanceof IInfinityCell cell) return cell.canEditBlacklist();
+        return false;
+    }
+
+    public static boolean canEditName(ItemStack stack) {
+        if (stack.getItem() instanceof IInfinityCell cell) return cell.canEditName();
+        return false;
     }
 
     public static boolean isValidCell(ItemStack stack) {
-        return stack.getItem() instanceof InfinityItemCell
-            || stack.getItem() instanceof InfinityTagCell
-            || stack.getItem() instanceof InfinityModIdCell;
+        return stack.getItem() instanceof IInfinityCell;
     }
 }

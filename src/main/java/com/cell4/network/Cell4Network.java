@@ -21,5 +21,10 @@ public class Cell4Network {
             CellConfigSavePacket::encode,
             CellConfigSavePacket::decode,
             CellConfigSavePacket::handle);
+        // 4.4: Register S2C response packet
+        CHANNEL.registerMessage(nextId++, CellConfigResponsePacket.class,
+            CellConfigResponsePacket::encode,
+            CellConfigResponsePacket::decode,
+            CellConfigResponsePacket::handle);
     }
 }
