@@ -1,6 +1,5 @@
 package com.cell4.common.item;
 
-import appeng.api.config.FuzzyMode;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
@@ -12,19 +11,21 @@ import com.cell4.common.util.NBTKeys;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.inventory.tooltip.TooltipComponent;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.item.component.TooltipDisplay;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
+import java.util.function.Consumer;
 
 public class InfinityModIdCell extends AEBaseItem implements ICellWorkbenchItem, IInfinityCell {
 
     public InfinityModIdCell(Properties properties) {
-        super(properties.stacksTo(1));
+        super(properties);
     }
 
     // IInfinityCell implementation
@@ -37,12 +38,13 @@ public class InfinityModIdCell extends AEBaseItem implements ICellWorkbenchItem,
     @Override
     public boolean canEditModId() { return true; }
 
+    // Name delegates to IInfinityCell default methods
     @Override
     public String getCustomName(ItemStack stack) { return IInfinityCell.super.getCustomName(stack); }
-
     @Override
     public void setCustomName(ItemStack stack, String name) { IInfinityCell.super.setCustomName(stack, name); }
 
+    // Mod IDs - delegates to Cell4Util shared methods (same as InfinityTagCell)
     @NotNull
     public static List<String> getModIds(ItemStack stack) {
         return Cell4Util.getStringList(stack, NBTKeys.MODID);
@@ -64,26 +66,12 @@ public class InfinityModIdCell extends AEBaseItem implements ICellWorkbenchItem,
     }
 
     @Override
-    public void appendHoverText(@NotNull ItemStack is, @NotNull Item.TooltipContext context, @NotNull List<Component> lines, @NotNull TooltipFlag adv) {
-        lines.add(Component.translatable("tooltip.cell4.infinity").withStyle(ChatFormatting.GREEN));
-        List<String> modIds = getModIds(is);
-        for (String id : modIds) {
-            lines.add(Component.translatable("tooltip.cell4.modid_filter", id).withStyle(ChatFormatting.LIGHT_PURPLE));
+    public void appendHoverText(@NotNull ItemStack is, @NotNull Item.TooltipContext context, @NotNull TooltipDisplay display, @NotNull Consumer<Component> tooltipAdder, @NotNull TooltipFlag adv) {
+        tooltipAdder.accept(Component.translatable("tooltip.cell4.infinity").withStyle(ChatFormatting.GREEN));
+        for (String id : getModIds(is)) {
+            tooltipAdder.accept(Component.translatable("tooltip.cell4.modid_filter", id).withStyle(ChatFormatting.LIGHT_PURPLE));
         }
-        int total = 0;
-        Set<String> modIdSet = Set.copyOf(modIds);
-        Cell4Util.BlacklistData blacklist = Cell4Util.getBlacklistData(is);
-        for (var item : BuiltInRegistries.ITEM) {
-            ResourceLocation rl = BuiltInRegistries.ITEM.getKey(item);
-            if (rl != null && modIdSet.contains(rl.getNamespace())) {
-                var key = AEItemKey.of(item);
-                if (key != null && !blacklist.isBlacklisted(key)) total++;
-            }
-        }
-        if (total > 18) {
-            lines.add(Component.translatable("tooltip.cell4.more_items", total - 18).withStyle(ChatFormatting.GRAY));
-        }
-        appendBlacklistTooltip(is, lines);
+        appendBlacklistTooltip(is, tooltipAdder);
     }
 
     @NotNull
@@ -98,7 +86,7 @@ public class InfinityModIdCell extends AEBaseItem implements ICellWorkbenchItem,
 
         for (var item : BuiltInRegistries.ITEM) {
             if (previewItems.size() >= 18) break;
-            ResourceLocation rl = BuiltInRegistries.ITEM.getKey(item);
+            Identifier rl = BuiltInRegistries.ITEM.getKey(item);
             if (rl != null && modIdSet.contains(rl.getNamespace())) {
                 var key = AEItemKey.of(item);
                 if (key != null && !blacklist.isBlacklisted(key)) {
@@ -111,13 +99,14 @@ public class InfinityModIdCell extends AEBaseItem implements ICellWorkbenchItem,
 
         List<GenericStack> content = new ArrayList<>(previewItems.size());
         for (AEItemKey key : previewItems) {
-            content.add(new GenericStack(key, IInfinityCell.getAsIntMax(key)));
+            content.add(new GenericStack(key, Integer.MAX_VALUE));
         }
         return Optional.of(new StorageCellTooltipComponent(List.of(), content, false, true));
     }
 
+    // FuzzyMode delegates to IInfinityCell default methods
     @Override
-    public FuzzyMode getFuzzyMode(ItemStack itemStack) { return IInfinityCell.super.getFuzzyMode(itemStack); }
+    public appeng.api.config.FuzzyMode getFuzzyMode(ItemStack itemStack) { return IInfinityCell.super.getFuzzyMode(itemStack); }
     @Override
-    public void setFuzzyMode(ItemStack itemStack, FuzzyMode fuzzyMode) { IInfinityCell.super.setFuzzyMode(itemStack, fuzzyMode); }
+    public void setFuzzyMode(ItemStack itemStack, appeng.api.config.FuzzyMode fuzzyMode) { IInfinityCell.super.setFuzzyMode(itemStack, fuzzyMode); }
 }

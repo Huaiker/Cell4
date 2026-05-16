@@ -8,14 +8,14 @@ import appeng.api.storage.StorageCells;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Mod(Cell4.MODID)
 public class Cell4 {
 
     public static final String MODID = "cell4";
-    public static final Logger LOGGER = LogManager.getLogger();
+    public static final Logger LOGGER = LoggerFactory.getLogger(Cell4.class);
 
     public Cell4(IEventBus modEventBus) {
         // Register deferred registers

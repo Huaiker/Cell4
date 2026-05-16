@@ -1,6 +1,5 @@
 package com.cell4.common.item;
 
-import appeng.api.config.FuzzyMode;
 import appeng.api.stacks.AEFluidKey;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
@@ -14,21 +13,24 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.inventory.tooltip.TooltipComponent;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.item.component.TooltipDisplay;
 import net.minecraft.world.level.material.Fluid;
+import net.minecraft.world.level.material.Fluids;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
+import java.util.function.Consumer;
 
 public class InfinityTagCell extends AEBaseItem implements ICellWorkbenchItem, IInfinityCell {
 
     public InfinityTagCell(Properties properties) {
-        super(properties.stacksTo(1));
+        super(properties);
     }
 
     // IInfinityCell implementation
@@ -44,12 +46,13 @@ public class InfinityTagCell extends AEBaseItem implements ICellWorkbenchItem, I
     @Override
     public boolean canEditModId() { return true; }
 
+    // Name delegates to IInfinityCell default methods
     @Override
     public String getCustomName(ItemStack stack) { return IInfinityCell.super.getCustomName(stack); }
-
     @Override
     public void setCustomName(ItemStack stack, String name) { IInfinityCell.super.setCustomName(stack, name); }
 
+    // Tag names - delegates to Cell4Util shared methods
     @NotNull
     public static List<String> getTagNames(ItemStack stack) {
         return Cell4Util.getStringList(stack, NBTKeys.TAG);
@@ -65,6 +68,7 @@ public class InfinityTagCell extends AEBaseItem implements ICellWorkbenchItem, I
 
     public static boolean hasTagNames(ItemStack stack) { return !getTagNames(stack).isEmpty(); }
 
+    // Mod IDs - delegates to Cell4Util shared methods (same as InfinityModIdCell)
     @NotNull
     public static List<String> getModIds(ItemStack stack) {
         return Cell4Util.getStringList(stack, NBTKeys.MODID);
@@ -86,17 +90,15 @@ public class InfinityTagCell extends AEBaseItem implements ICellWorkbenchItem, I
     }
 
     @Override
-    public void appendHoverText(@NotNull ItemStack is, @NotNull Item.TooltipContext context, @NotNull List<Component> lines, @NotNull TooltipFlag adv) {
-        lines.add(Component.translatable("tooltip.cell4.infinity").withStyle(ChatFormatting.GREEN));
-        List<String> tags = getTagNames(is);
-        for (String tag : tags) {
-            lines.add(Component.translatable("tooltip.cell4.tag_filter", tag).withStyle(ChatFormatting.AQUA));
+    public void appendHoverText(@NotNull ItemStack is, @NotNull Item.TooltipContext context, @NotNull TooltipDisplay display, @NotNull Consumer<Component> tooltipAdder, @NotNull TooltipFlag adv) {
+        tooltipAdder.accept(Component.translatable("tooltip.cell4.infinity").withStyle(ChatFormatting.GREEN));
+        for (String tag : getTagNames(is)) {
+            tooltipAdder.accept(Component.translatable("tooltip.cell4.tag_filter", tag).withStyle(ChatFormatting.AQUA));
         }
-        List<String> modIds = getModIds(is);
-        for (String id : modIds) {
-            lines.add(Component.translatable("tooltip.cell4.modid_filter", id).withStyle(ChatFormatting.LIGHT_PURPLE));
+        for (String id : getModIds(is)) {
+            tooltipAdder.accept(Component.translatable("tooltip.cell4.modid_filter", id).withStyle(ChatFormatting.LIGHT_PURPLE));
         }
-        appendBlacklistTooltip(is, lines);
+        appendBlacklistTooltip(is, tooltipAdder);
     }
 
     @NotNull
@@ -111,12 +113,11 @@ public class InfinityTagCell extends AEBaseItem implements ICellWorkbenchItem, I
         if (!hasTags && !hasModIds) return Optional.empty();
 
         List<AEKey> previewKeys = new ArrayList<>();
-        int totalMatchCount = 0;
         Cell4Util.BlacklistData blacklist = Cell4Util.getBlacklistData(stack);
 
         if (hasTags) {
             for (String tagName : tagNames) {
-                ResourceLocation tagRL = ResourceLocation.tryParse(tagName);
+                Identifier tagRL = Identifier.tryParse(tagName);
                 if (tagRL == null) continue;
 
                 TagKey<net.minecraft.world.item.Item> itemTag = TagKey.create(BuiltInRegistries.ITEM.key(), tagRL);
@@ -124,25 +125,25 @@ public class InfinityTagCell extends AEBaseItem implements ICellWorkbenchItem, I
                     var key = AEItemKey.of(holder.value());
                     if (key == null || blacklist.isBlacklisted(key)) continue;
                     if (hasModIds && !Cell4Util.belongsToMod(key, modIdSet)) continue;
-                    totalMatchCount++;
                     if (previewKeys.size() < 18) previewKeys.add(key);
                 }
 
                 TagKey<Fluid> fluidTag = TagKey.create(BuiltInRegistries.FLUID.key(), tagRL);
                 for (Holder<Fluid> holder : BuiltInRegistries.FLUID.getTagOrEmpty(fluidTag)) {
-                    var key = AEFluidKey.of(holder.value());
+                    Fluid fluid = holder.value();
+                    if (fluid == Fluids.EMPTY) continue;
+                    var key = AEFluidKey.of(fluid);
                     if (key == null || blacklist.isBlacklisted(key)) continue;
                     if (hasModIds && !Cell4Util.belongsToMod(key, modIdSet)) continue;
-                    totalMatchCount++;
                     if (previewKeys.size() < 18) previewKeys.add(key);
                 }
             }
         } else if (hasModIds) {
             for (var item : BuiltInRegistries.ITEM) {
-                if (Cell4Util.belongsToMod(AEItemKey.of(item), modIdSet)) {
+                Identifier rl = BuiltInRegistries.ITEM.getKey(item);
+                if (rl != null && modIdSet.contains(rl.getNamespace())) {
                     var key = AEItemKey.of(item);
                     if (key != null && !blacklist.isBlacklisted(key)) {
-                        totalMatchCount++;
                         if (previewKeys.size() < 18) previewKeys.add(key);
                     }
                 }
@@ -155,12 +156,12 @@ public class InfinityTagCell extends AEBaseItem implements ICellWorkbenchItem, I
         for (AEKey key : previewKeys) {
             content.add(new GenericStack(key, IInfinityCell.getAsIntMax(key)));
         }
-
         return Optional.of(new StorageCellTooltipComponent(List.of(), content, false, true));
     }
 
+    // FuzzyMode delegates to IInfinityCell default methods
     @Override
-    public FuzzyMode getFuzzyMode(ItemStack itemStack) { return IInfinityCell.super.getFuzzyMode(itemStack); }
+    public appeng.api.config.FuzzyMode getFuzzyMode(ItemStack itemStack) { return IInfinityCell.super.getFuzzyMode(itemStack); }
     @Override
-    public void setFuzzyMode(ItemStack itemStack, FuzzyMode fuzzyMode) { IInfinityCell.super.setFuzzyMode(itemStack, fuzzyMode); }
+    public void setFuzzyMode(ItemStack itemStack, appeng.api.config.FuzzyMode fuzzyMode) { IInfinityCell.super.setFuzzyMode(itemStack, fuzzyMode); }
 }

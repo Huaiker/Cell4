@@ -8,7 +8,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
@@ -67,7 +67,7 @@ public class Cell4Util {
             }
 
             if (!modIds.isEmpty()) {
-                ResourceLocation rl = null;
+                Identifier rl = null;
                 if (key instanceof AEItemKey itemKey) {
                     rl = BuiltInRegistries.ITEM.getKey(itemKey.getItem());
                 } else if (key instanceof AEFluidKey fluidKey) {
@@ -107,7 +107,7 @@ public class Cell4Util {
                 String modId = id.substring(1);
                 if (!modId.isEmpty()) modIds.add(modId);
             } else {
-                ResourceLocation rl = ResourceLocation.tryParse(id);
+                Identifier rl = Identifier.tryParse(id);
                 if (rl != null) {
                     var item = BuiltInRegistries.ITEM.getOptional(rl);
                     if (item.isPresent()) { itemKeys.add(AEItemKey.of(item.get())); continue; }
@@ -137,24 +137,43 @@ public class Cell4Util {
         if (tag.get(key) instanceof ListTag listTag) {
             List<String> result = new ArrayList<>(listTag.size());
             for (int i = 0; i < listTag.size(); i++) {
-                String str = listTag.getString(i);
+                String str = listTag.getStringOr(i, "");
                 if (!str.isEmpty()) result.add(str);
             }
             return result;
         }
-        String single = tag.getString(key);
+        String single = tag.getStringOr(key, "");
         if (!single.isEmpty()) return Collections.singletonList(single);
         return Collections.emptyList();
     }
 
+    private static boolean matchesTagBlacklist(AEKey key, String tagName) {
+        Identifier tagRL = Identifier.tryParse(tagName);
+        if (tagRL == null) return false;
+        if (key instanceof AEItemKey itemKey) {
+            TagKey<net.minecraft.world.item.Item> itemTag = TagKey.create(BuiltInRegistries.ITEM.key(), tagRL);
+            return itemKey.getItem().builtInRegistryHolder().is(itemTag);
+        } else if (key instanceof AEFluidKey fluidKey) {
+            TagKey<net.minecraft.world.level.material.Fluid> fluidTag = TagKey.create(BuiltInRegistries.FLUID.key(), tagRL);
+            return fluidKey.getFluid().builtInRegistryHolder().is(fluidTag);
+        }
+        return false;
+    }
+
     // === Shared NBT list get/set for cell data fields ===
 
+    /**
+     * Get a string list from the cell's custom NBT data.
+     */
     public static List<String> getStringList(ItemStack stack, String nbtKey) {
         CompoundTag tag = getCustomTag(stack);
         if (!tag.contains(nbtKey)) return Collections.emptyList();
         return parseStringList(tag, nbtKey);
     }
 
+    /**
+     * Set a string list in the cell's custom NBT data.
+     */
     public static void setStringList(ItemStack stack, String nbtKey, List<String> values) {
         CompoundTag tag = getCustomTag(stack);
         ListTag listTag = new ListTag();
@@ -163,32 +182,26 @@ public class Cell4Util {
         setCustomTag(stack, tag);
     }
 
+    /**
+     * Set a single string value in the cell's custom NBT data.
+     */
     public static void setStringValue(ItemStack stack, String nbtKey, String value) {
         CompoundTag tag = getCustomTag(stack);
         tag.putString(nbtKey, value);
         setCustomTag(stack, tag);
     }
 
+    /**
+     * Check if a key belongs to any of the specified mod IDs (namespaces).
+     * Shared by InfinityModIdStorage and InfinityTagStorage.
+     */
     public static boolean belongsToMod(AEKey key, Set<String> modIdSet) {
         if (key instanceof AEItemKey itemKey) {
-            ResourceLocation rl = BuiltInRegistries.ITEM.getKey(itemKey.getItem());
+            Identifier rl = BuiltInRegistries.ITEM.getKey(itemKey.getItem());
             return rl != null && modIdSet.contains(rl.getNamespace());
         } else if (key instanceof AEFluidKey fluidKey) {
-            ResourceLocation rl = BuiltInRegistries.FLUID.getKey(fluidKey.getFluid());
+            Identifier rl = BuiltInRegistries.FLUID.getKey(fluidKey.getFluid());
             return rl != null && modIdSet.contains(rl.getNamespace());
-        }
-        return false;
-    }
-
-    private static boolean matchesTagBlacklist(AEKey key, String tagName) {
-        ResourceLocation tagRL = ResourceLocation.tryParse(tagName);
-        if (tagRL == null) return false;
-        if (key instanceof AEItemKey itemKey) {
-            TagKey<net.minecraft.world.item.Item> itemTag = TagKey.create(BuiltInRegistries.ITEM.key(), tagRL);
-            return itemKey.getItem().builtInRegistryHolder().is(itemTag);
-        } else if (key instanceof AEFluidKey fluidKey) {
-            TagKey<net.minecraft.world.level.material.Fluid> fluidTag = TagKey.create(BuiltInRegistries.FLUID.key(), tagRL);
-            return fluidKey.getFluid().builtInRegistryHolder().is(fluidTag);
         }
         return false;
     }

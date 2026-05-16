@@ -22,7 +22,7 @@ public class Cell4CreativeTab {
     public static final DeferredHolder<CreativeModeTab, CreativeModeTab> CELL4_TAB =
             CREATIVE_TABS.register("cell4_tab", () ->
                     CreativeModeTab.builder()
-                            .icon(() -> new ItemStack(Cell4Items.INFINITY_ITEM_CELL.get()))
+                            .icon(() -> Cell4Items.INFINITY_ITEM_CELL.get().getDefaultInstance())
                             .title(Component.translatable("itemGroup.cell4"))
                             .displayItems((parameters, output) -> {
                                 output.accept(Cell4Items.INFINITY_ITEM_CELL.get());
@@ -31,20 +31,20 @@ public class Cell4CreativeTab {
                                 output.accept(Cell4Items.CELL_CONFIGURATOR.get());
                                 
                                 // Preset: minecraft:logs tag cell
-                                ItemStack logsTagCell = new ItemStack(Cell4Items.INFINITY_TAG_CELL.get());
+                                ItemStack logsTagCell = Cell4Items.INFINITY_TAG_CELL.get().getDefaultInstance();
                                 InfinityTagCell.setTagNames(logsTagCell, List.of("minecraft:logs"));
                                 ((IInfinityCell) Cell4Items.INFINITY_TAG_CELL.get()).setCustomName(logsTagCell, "All Logs");
                                 output.accept(logsTagCell);
                                 
                                 // Preset: minecraft modid cell
-                                ItemStack minecraftModidCell = new ItemStack(Cell4Items.INFINITY_MODID_CELL.get());
+                                ItemStack minecraftModidCell = Cell4Items.INFINITY_MODID_CELL.get().getDefaultInstance();
                                 InfinityModIdCell.setModIds(minecraftModidCell, List.of("minecraft"));
                                 ((IInfinityCell) Cell4Items.INFINITY_MODID_CELL.get()).setCustomName(minecraftModidCell, "All Vanilla");
                                 output.accept(minecraftModidCell);
                                 
                                 // 6.1: Fix: minecraft:water is not a tag name, it's a fluid registry name.
                                 // Use an Infinity Item Cell instead for water.
-                                ItemStack waterCell = new ItemStack(Cell4Items.INFINITY_ITEM_CELL.get());
+                                ItemStack waterCell = Cell4Items.INFINITY_ITEM_CELL.get().getDefaultInstance();
                                 InfinityItemCell.setIdentifier(waterCell, "minecraft:water");
                                 ((IInfinityCell) Cell4Items.INFINITY_ITEM_CELL.get()).setCustomName(waterCell, "Water");
                                 output.accept(waterCell);

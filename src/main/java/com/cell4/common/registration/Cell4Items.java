@@ -5,24 +5,22 @@ import com.cell4.common.item.CellConfigurator;
 import com.cell4.common.item.InfinityItemCell;
 import com.cell4.common.item.InfinityModIdCell;
 import com.cell4.common.item.InfinityTagCell;
-import net.minecraft.world.item.Item;
-import net.neoforged.neoforge.registries.DeferredHolder;
+import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
 public class Cell4Items {
 
-    public static final DeferredRegister<Item> ITEMS =
-            DeferredRegister.create(net.minecraft.core.registries.Registries.ITEM, Cell4.MODID);
+    public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(Cell4.MODID);
 
-    public static final DeferredHolder<Item, InfinityItemCell> INFINITY_ITEM_CELL =
-            ITEMS.register("infinity_item_cell", () -> new InfinityItemCell(new Item.Properties()));
+    public static final DeferredItem<InfinityItemCell> INFINITY_ITEM_CELL =
+        ITEMS.registerItem("infinity_item_cell", InfinityItemCell::new, props -> props.stacksTo(1));
 
-    public static final DeferredHolder<Item, InfinityTagCell> INFINITY_TAG_CELL =
-            ITEMS.register("infinity_tag_cell", () -> new InfinityTagCell(new Item.Properties()));
+    public static final DeferredItem<InfinityTagCell> INFINITY_TAG_CELL =
+        ITEMS.registerItem("infinity_tag_cell", InfinityTagCell::new, props -> props.stacksTo(1));
 
-    public static final DeferredHolder<Item, InfinityModIdCell> INFINITY_MODID_CELL =
-            ITEMS.register("infinity_modid_cell", () -> new InfinityModIdCell(new Item.Properties()));
+    public static final DeferredItem<InfinityModIdCell> INFINITY_MODID_CELL =
+        ITEMS.registerItem("infinity_modid_cell", InfinityModIdCell::new, props -> props.stacksTo(1));
 
-    public static final DeferredHolder<Item, CellConfigurator> CELL_CONFIGURATOR =
-            ITEMS.register("cell_configurator", () -> new CellConfigurator(new Item.Properties()));
+    public static final DeferredItem<CellConfigurator> CELL_CONFIGURATOR =
+        ITEMS.registerItem("cell_configurator", CellConfigurator::new, props -> props.stacksTo(1));
 }

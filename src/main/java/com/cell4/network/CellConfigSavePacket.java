@@ -15,7 +15,7 @@ import net.minecraft.nbt.StringTag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -35,7 +35,7 @@ public record CellConfigSavePacket(String cell4item, String cell4tag, String cel
     private static final int MAX_LENGTH = 4096;
 
     public static final Type<CellConfigSavePacket> TYPE = new Type<>(
-        ResourceLocation.fromNamespaceAndPath(Cell4.MODID, "cell_config_save")
+        Identifier.fromNamespaceAndPath(Cell4.MODID, "cell_config_save")
     );
 
     public static final StreamCodec<FriendlyByteBuf, CellConfigSavePacket> STREAM_CODEC = StreamCodec.of(
@@ -133,13 +133,13 @@ public record CellConfigSavePacket(String cell4item, String cell4tag, String cel
     private static String validate(ItemStack cell, List<String> items, List<String> tags, List<String> modIds, List<String> blacklist) {
         // Validate item identifiers
         for (String id : items) {
-            if (ResourceLocation.tryParse(id) == null) {
+            if (Identifier.tryParse(id) == null) {
                 return "gui.cell4.save_fail_invalid_item";
             }
         }
         // Validate tag names
         for (String tag : tags) {
-            if (ResourceLocation.tryParse(tag) == null) {
+            if (Identifier.tryParse(tag) == null) {
                 return "gui.cell4.save_fail_invalid_tag";
             }
         }
@@ -153,7 +153,7 @@ public record CellConfigSavePacket(String cell4item, String cell4tag, String cel
         for (String entry : blacklist) {
             if (entry.startsWith("#")) {
                 String tagName = entry.substring(1);
-                if (tagName.isEmpty() || ResourceLocation.tryParse(tagName) == null) {
+                if (tagName.isEmpty() || Identifier.tryParse(tagName) == null) {
                     return "gui.cell4.save_fail_invalid_blacklist_tag";
                 }
             } else if (entry.startsWith("@")) {
@@ -162,7 +162,7 @@ public record CellConfigSavePacket(String cell4item, String cell4tag, String cel
                     return "gui.cell4.save_fail_invalid_blacklist_modid";
                 }
             } else {
-                if (ResourceLocation.tryParse(entry) == null) {
+                if (Identifier.tryParse(entry) == null) {
                     return "gui.cell4.save_fail_invalid_blacklist_item";
                 }
             }

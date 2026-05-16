@@ -4,7 +4,7 @@ import com.cell4.Cell4;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * S2C packet sent from server to client after a configuration save attempt.
@@ -13,7 +13,7 @@ import net.minecraft.resources.ResourceLocation;
 public record CellConfigResponsePacket(boolean success, String message) implements CustomPacketPayload {
 
     public static final Type<CellConfigResponsePacket> TYPE = new Type<>(
-        ResourceLocation.fromNamespaceAndPath(Cell4.MODID, "cell_config_response")
+        Identifier.fromNamespaceAndPath(Cell4.MODID, "cell_config_response")
     );
 
     public static final StreamCodec<FriendlyByteBuf, CellConfigResponsePacket> STREAM_CODEC = StreamCodec.of(
@@ -37,7 +37,7 @@ public record CellConfigResponsePacket(boolean success, String message) implemen
 
     public static void handle(CellConfigResponsePacket pkt, net.neoforged.neoforge.network.handling.IPayloadContext context) {
         context.enqueueWork(() -> {
-            if (context.player().level().isClientSide) {
+            if (context.player().level().isClientSide()) {
                 // Client-side: store the response for the screen to pick up
                 com.cell4.client.CellConfiguratorScreen.setLastSaveResult(pkt.success, pkt.message);
             }

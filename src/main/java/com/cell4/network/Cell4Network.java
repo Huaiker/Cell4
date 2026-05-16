@@ -6,7 +6,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
-@EventBusSubscriber(modid = Cell4.MODID, bus = EventBusSubscriber.Bus.MOD)
+@EventBusSubscriber(modid = Cell4.MODID)
 public class Cell4Network {
 
     @SubscribeEvent

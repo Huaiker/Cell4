@@ -1,19 +1,18 @@
 plugins {
     id 'java-library'
-    id 'eclipse'
     id 'idea'
     id 'maven-publish'
-    id 'net.neoforged.moddev' version '2.0.28-beta'
+    id 'net.neoforged.moddev' version '2.0.141'
 }
 
 version = mod_version
 group = mod_group_id
 
 base {
-    archivesName = 'Cell4-1.21.1neo'
+    archivesName = 'Cell4-26.1.2neo'
 }
 
-java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+java.toolchain.languageVersion = JavaLanguageVersion.of(25)
 
 repositories {
     maven {
@@ -49,6 +48,16 @@ neoForge {
 }
 
 sourceSets.main.resources { srcDir 'src/generated/resources' }
+
+tasks.register('generateModMetadata', Copy) {
+    from 'src/main/templates'
+    into 'src/generated/resources'
+    expand project.properties
+}
+
+tasks.named('processResources').configure {
+    dependsOn generateModMetadata
+}
 
 dependencies {
     implementation "org.appliedenergistics:appliedenergistics2:${ae2_version}"

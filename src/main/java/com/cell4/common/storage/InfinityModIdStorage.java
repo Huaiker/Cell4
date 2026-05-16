@@ -4,12 +4,12 @@ import appeng.api.stacks.AEFluidKey;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.KeyCounter;
-import com.cell4.common.item.IInfinityCell;
 import com.cell4.common.item.InfinityModIdCell;
 import com.cell4.common.util.Cell4Util;
+import com.cell4.common.item.IInfinityCell;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.material.Fluids;
 
@@ -39,7 +39,7 @@ public class InfinityModIdStorage extends AbstractInfinityStorage {
 
     @Override
     protected boolean matchesFilter(AEKey what) {
-        return Cell4Util.belongsToMod(what, modIdSet);
+        return matchesAnyModId(what);
     }
 
     @Override
@@ -56,7 +56,7 @@ public class InfinityModIdStorage extends AbstractInfinityStorage {
             cachedAvailableStacks = new KeyCounter();
 
             for (var item : BuiltInRegistries.ITEM) {
-                ResourceLocation rl = BuiltInRegistries.ITEM.getKey(item);
+                Identifier rl = BuiltInRegistries.ITEM.getKey(item);
                 if (rl != null && modIdSet.contains(rl.getNamespace())) {
                     var key = AEItemKey.of(item);
                     if (key != null && !blacklist.isBlacklisted(key)) {
@@ -67,7 +67,7 @@ public class InfinityModIdStorage extends AbstractInfinityStorage {
 
             for (var fluid : BuiltInRegistries.FLUID) {
                 if (fluid == Fluids.EMPTY) continue;
-                ResourceLocation rl = BuiltInRegistries.FLUID.getKey(fluid);
+                Identifier rl = BuiltInRegistries.FLUID.getKey(fluid);
                 if (rl != null && modIdSet.contains(rl.getNamespace())) {
                     var key = AEFluidKey.of(fluid);
                     if (key != null && !blacklist.isBlacklisted(key)) {
@@ -85,5 +85,9 @@ public class InfinityModIdStorage extends AbstractInfinityStorage {
     @Override
     public Component getDescription() {
         return Component.translatable("item.cell4.infinity_modid_cell");
+    }
+
+    private boolean matchesAnyModId(AEKey key) {
+        return Cell4Util.belongsToMod(key, modIdSet);
     }
 }

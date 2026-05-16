@@ -39,7 +39,7 @@ public class CellConfiguratorMenu extends AbstractContainerMenu {
             }
         };
 
-        this.addSlot(new Slot(this.cellContainer, 0, 9, 23) {
+        this.addSlot(new Slot(this.cellContainer, 0, 8, 22) {
             @Override
             public boolean mayPlace(ItemStack stack) { return isValidCell(stack); }
             @Override
@@ -85,7 +85,7 @@ public class CellConfiguratorMenu extends AbstractContainerMenu {
     @Override
     public void removed(Player player) {
         super.removed(player);
-        if (!player.level().isClientSide) {
+        if (!player.level().isClientSide()) {
             ItemStack cellStack = this.cellContainer.getItem(0);
             if (!cellStack.isEmpty()) {
                 // Try to add to player inventory first
