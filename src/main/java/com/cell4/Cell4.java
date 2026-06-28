@@ -16,32 +16,22 @@ import org.apache.logging.log4j.Logger;
 
 @Mod(Cell4.MODID)
 public class Cell4 {
-
     public static final String MODID = "cell4";
     public static final Logger LOGGER = LogManager.getLogger();
 
     public Cell4() {
         IEventBus bus = FMLJavaModLoadingContext.get().getModEventBus();
-
-        // Register deferred registers
         Cell4Items.ITEMS.register(bus);
         Cell4CreativeTab.CREATIVE_TABS.register(bus);
         Cell4MenuTypes.MENU_TYPES.register(bus);
-
-        // Register setup event
         bus.addListener(this::commonSetup);
-
-        // Register ourselves for server and other game events
         MinecraftForge.EVENT_BUS.register(this);
-
         LOGGER.info("Cell\u2074 initialized");
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
         event.enqueueWork(() -> {
-            // Register our custom cell handler with AE2
             StorageCells.addCellHandler(InfinityCellHandler.INSTANCE);
-            // Register network channel
             Cell4Network.register();
             LOGGER.info("Cell\u2074 cell handler registered with AE2");
         });

@@ -115,18 +115,18 @@ public class InfinityModIdCell extends AEBaseItem implements ICellWorkbenchItem,
         List<String> modIds = getModIds(stack);
         if (modIds.isEmpty()) return Optional.empty();
 
-        // Collect matching items (max 18 for 2 rows)
         List<AEItemKey> previewItems = new ArrayList<>();
+        int totalMatchCount = 0;
         Cell4Util.BlacklistData blacklist = Cell4Util.getBlacklistData(stack);
         Set<String> modIdSet = Set.copyOf(modIds);
 
         for (var item : BuiltInRegistries.ITEM) {
-            if (previewItems.size() >= 18) break;
             ResourceLocation rl = BuiltInRegistries.ITEM.getKey(item);
             if (rl != null && modIdSet.contains(rl.getNamespace())) {
                 var key = AEItemKey.of(item);
                 if (key != null && !blacklist.isBlacklisted(key)) {
-                    previewItems.add(key);
+                    totalMatchCount++;
+                    if (previewItems.size() < 18) previewItems.add(key);
                 }
             }
         }
@@ -137,7 +137,26 @@ public class InfinityModIdCell extends AEBaseItem implements ICellWorkbenchItem,
         for (AEItemKey key : previewItems) {
             content.add(new GenericStack(key, IInfinityCell.getAsIntMax(key)));
         }
-        return Optional.of(new StorageCellTooltipComponent(List.of(), content, false, true));
+        return Optional.of(new StorageCellTooltipComponent(List.of(), content, totalMatchCount > previewItems.size(), true));
+    }
+
+    /**
+     * Return the TRUE total count of matching items (not capped to 18).
+     */
+    public static int getPreviewTotalCount(ItemStack stack) {
+        List<String> modIds = getModIds(stack);
+        if (modIds.isEmpty()) return 0;
+        Cell4Util.BlacklistData blacklist = Cell4Util.getBlacklistData(stack);
+        Set<String> modIdSet = Set.copyOf(modIds);
+        int total = 0;
+        for (var item : BuiltInRegistries.ITEM) {
+            ResourceLocation rl = BuiltInRegistries.ITEM.getKey(item);
+            if (rl != null && modIdSet.contains(rl.getNamespace())) {
+                var key = AEItemKey.of(item);
+                if (key != null && !blacklist.isBlacklisted(key)) total++;
+            }
+        }
+        return total;
     }
 
     @Override

@@ -4,6 +4,7 @@ import appeng.api.stacks.AEFluidKey;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.KeyCounter;
+import com.cell4.common.integration.MekanismIntegration;
 import com.cell4.common.item.IInfinityCell;
 import com.cell4.common.item.InfinityTagCell;
 import com.cell4.common.util.Cell4Util;
@@ -101,11 +102,21 @@ public class InfinityTagStorage extends AbstractInfinityStorage {
                     for (var holder : BuiltInRegistries.FLUID.getTagOrEmpty(fluidTag)) {
                         Fluid fluid = holder.value();
                         if (fluid == Fluids.EMPTY) continue;
+                        ResourceLocation fluidRl = BuiltInRegistries.FLUID.getKey(fluid);
+                        if (fluidRl != null && fluidRl.getPath().startsWith("flowing_")) continue;
                         var key = AEFluidKey.of(fluid);
                         if (key == null) continue;
                         if (hasModIds && !Cell4Util.belongsToMod(key, modIdSet)) continue;
                         if (!blacklist.isBlacklisted(key)) {
                             cachedAvailableStacks.add(key, IInfinityCell.getAsIntMax(key));
+                        }
+                    }
+
+                    // 7.0: Add Mekanism chemicals matching the tag
+                    for (AEKey chemicalKey : MekanismIntegration.getChemicalKeysByTag(tagName)) {
+                        if (hasModIds && !Cell4Util.belongsToMod(chemicalKey, modIdSet)) continue;
+                        if (!blacklist.isBlacklisted(chemicalKey)) {
+                            cachedAvailableStacks.add(chemicalKey, IInfinityCell.getAsIntMax(chemicalKey));
                         }
                     }
                 }
@@ -119,9 +130,17 @@ public class InfinityTagStorage extends AbstractInfinityStorage {
                 }
                 for (var fluid : BuiltInRegistries.FLUID) {
                     if (fluid == Fluids.EMPTY) continue;
+                    ResourceLocation rl = BuiltInRegistries.FLUID.getKey(fluid);
+                    if (rl != null && rl.getPath().startsWith("flowing_")) continue;
                     var key = AEFluidKey.of(fluid);
                     if (key != null && Cell4Util.belongsToMod(key, modIdSet) && !blacklist.isBlacklisted(key)) {
                         cachedAvailableStacks.add(key, IInfinityCell.getAsIntMax(key));
+                    }
+                }
+                // 7.0: Pure ModID mode - add Mekanism chemicals from specified mods
+                for (AEKey chemicalKey : MekanismIntegration.getAllChemicalKeys()) {
+                    if (Cell4Util.belongsToMod(chemicalKey, modIdSet) && !blacklist.isBlacklisted(chemicalKey)) {
+                        cachedAvailableStacks.add(chemicalKey, IInfinityCell.getAsIntMax(chemicalKey));
                     }
                 }
             }
@@ -155,7 +174,7 @@ public class InfinityTagStorage extends AbstractInfinityStorage {
             TagKey<Fluid> fluidTag = TagKey.create(BuiltInRegistries.FLUID.key(), tagRL);
             return fluidKey.getFluid().builtInRegistryHolder().is(fluidTag);
         }
-
-        return false;
+        // Mekanism chemical tag matching (no-op if Mekanism not installed)
+        return MekanismIntegration.matchesTag(key, tagName);
     }
 }

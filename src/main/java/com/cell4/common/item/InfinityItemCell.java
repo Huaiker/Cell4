@@ -89,22 +89,24 @@ public class InfinityItemCell extends AEBaseItem implements ICellWorkbenchItem, 
 
         List<AEKey> keys = new ArrayList<>(ids.size());
         for (String id : ids) {
-            ResourceLocation rl = ResourceLocation.tryParse(id);
-            if (rl != null) {
-                // Try as item
-                var item = BuiltInRegistries.ITEM.getOptional(rl);
-                if (item.isPresent()) {
-                    keys.add(AEItemKey.of(item.get()));
-                    continue;
+            try {
+                AEKey key = Cell4Util.parseIdentifier(id);
+                if (key != null && isKeyTypeRegistered(key)) {
+                    keys.add(key);
                 }
-                // Try as fluid
-                var fluid = BuiltInRegistries.FLUID.getOptional(rl);
-                if (fluid.isPresent() && fluid.get() != Fluids.EMPTY) {
-                    keys.add(AEFluidKey.of(fluid.get()));
-                }
-            }
+            } catch (Throwable ignored) {}
         }
         return keys;
+    }
+
+    /** Check if the AEKeyType for this key is registered (avoid crashes with uninstalled mods). */
+    private static boolean isKeyTypeRegistered(AEKey key) {
+        try {
+            appeng.api.stacks.AEKeyTypes.get(key.getType().getId());
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
     }
 
     /**
@@ -165,6 +167,19 @@ public class InfinityItemCell extends AEBaseItem implements ICellWorkbenchItem, 
             return Optional.empty();
         }
         return Optional.of(new StorageCellTooltipComponent(List.of(), content, false, true));
+    }
+
+    /**
+     * Return the TRUE total count of bound keys (not capped).
+     */
+    public static int getPreviewTotalCount(ItemStack stack) {
+        List<AEKey> records = getRecords(stack);
+        Cell4Util.BlacklistData blacklist = Cell4Util.getBlacklistData(stack);
+        int total = 0;
+        for (AEKey key : records) {
+            if (!blacklist.isBlacklisted(key)) total++;
+        }
+        return total;
     }
 
     @Override

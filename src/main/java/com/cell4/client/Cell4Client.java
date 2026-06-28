@@ -10,7 +10,6 @@ import com.cell4.Cell4;
 
 @Mod.EventBusSubscriber(modid = Cell4.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public class Cell4Client {
-
     @SubscribeEvent
     public static void clientSetup(FMLClientSetupEvent event) {
         event.enqueueWork(() -> {

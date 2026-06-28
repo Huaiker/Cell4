@@ -67,7 +67,8 @@ public interface IInfinityCell {
     default void setFuzzyMode(ItemStack itemStack, FuzzyMode fuzzyMode) { /* NO-OP */ }
 
     static long getAsIntMax(AEKey key) {
-        if (key instanceof AEFluidKey) return (long) Integer.MAX_VALUE * AEFluidKey.AMOUNT_BUCKET;
-        return Integer.MAX_VALUE;
+        // Long.MAX_VALUE for both items and fluids — effectively unlimited within AE2's long-based amount system.
+        // For fluids this is ~1.14e14 buckets, far beyond any practical need.
+        return Long.MAX_VALUE;
     }
 }

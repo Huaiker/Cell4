@@ -129,9 +129,9 @@ public class CellConfigSavePacket {
      * Returns null if valid, or an error translation key if invalid.
      */
     private static String validate(ItemStack cell, List<String> items, List<String> tags, List<String> modIds, List<String> blacklist) {
-        // Validate item identifiers
+        // Validate item identifiers (support mekfluid:/mekchemical: prefixes)
         for (String id : items) {
-            if (ResourceLocation.tryParse(id) == null) {
+            if (stripPrefix(id) == null || ResourceLocation.tryParse(stripPrefix(id)) == null) {
                 return "gui.cell4.save_fail_invalid_item";
             }
         }
@@ -147,7 +147,7 @@ public class CellConfigSavePacket {
                 return "gui.cell4.save_fail_invalid_modid";
             }
         }
-        // Validate blacklist entries
+        // Validate blacklist entries (support mekfluid:/mekchemical: prefixes for plain entries)
         for (String entry : blacklist) {
             if (entry.startsWith("#")) {
                 String tagName = entry.substring(1);
@@ -160,12 +160,26 @@ public class CellConfigSavePacket {
                     return "gui.cell4.save_fail_invalid_blacklist_modid";
                 }
             } else {
-                if (ResourceLocation.tryParse(entry) == null) {
+                String stripped = stripPrefix(entry);
+                if (stripped == null || ResourceLocation.tryParse(stripped) == null) {
                     return "gui.cell4.save_fail_invalid_blacklist_item";
                 }
             }
         }
         return null;
+    }
+
+    /**
+     * Strip the mekfluid:/mekchemical: prefix if present, returning the plain
+     * namespace:path portion for ResourceLocation validation. Returns null if
+     * the input is null/empty.
+     */
+    private static String stripPrefix(String id) {
+        if (id == null || id.isEmpty()) return null;
+        if (id.startsWith("mekfluid:")) return id.substring("mekfluid:".length());
+        if (id.startsWith("mekchemical:")) return id.substring("mekchemical:".length());
+        if (id.startsWith("energy:")) return id.substring("energy:".length());
+        return id;
     }
 
     /**

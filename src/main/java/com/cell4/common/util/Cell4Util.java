@@ -3,6 +3,7 @@ package com.cell4.common.util;
 import appeng.api.stacks.AEFluidKey;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
+import com.cell4.common.integration.MekanismIntegration;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -13,7 +14,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.material.Fluids;
 
 import java.util.*;
-import java.util.Set;
 
 /**
  * Shared NBT utility for Cell⁴.
@@ -29,6 +29,68 @@ public class Cell4Util {
 
     // Keep backward compatibility alias
     public static final String BLACKLIST_KEY = NBTKeys.BLACKLIST;
+
+    // === Identifier prefix parsing ===
+    // Supported formats:
+    //   fluid:namespace:path   → AEFluidKey
+    //   chemical:namespace:path → MekanismKey (if Mekanism + AppMek installed)
+    //   namespace:path         → item first, then fluid (legacy behavior)
+
+    /**
+     * Parse a user-entered identifier string into an AEKey.
+     * <p>
+     * Recognized prefixes:
+     * <ul>
+     *   <li>{@code fluid:ns:path} — explicit fluid</li>
+     *   <li>{@code chemical:ns:path} — Mekanism chemical (requires Mekanism + Applied Mekanistics)</li>
+     *   <li>{@code ns:path} (no prefix) — try item first, then fluid (legacy)</li>
+     * </ul>
+     * Returns null if the identifier cannot be resolved.
+     */
+    public static AEKey parseIdentifier(String id) {
+        if (id == null || id.isEmpty()) return null;
+
+        // Explicit Mekanism fluid prefix
+        if (id.startsWith("mekfluid:")) {
+            String rest = id.substring("mekfluid:".length());
+            ResourceLocation rl = ResourceLocation.tryParse(rest);
+            if (rl == null) return null;
+            var fluid = BuiltInRegistries.FLUID.getOptional(rl);
+            if (fluid.isPresent() && fluid.get() != Fluids.EMPTY) {
+                return AEFluidKey.of(fluid.get());
+            }
+            return null;
+        }
+
+        // Explicit Mekanism chemical prefix
+        if (id.startsWith("mekchemical:")) {
+            String rest = id.substring("mekchemical:".length());
+            ResourceLocation rl = ResourceLocation.tryParse(rest);
+            if (rl == null) return null;
+            return MekanismIntegration.parseChemicalKey(rl);
+        }
+
+        // Energy identifiers: energy:ars_source energy:botania_mana energy:fe
+        if (id.startsWith("energy:")) {
+            String rest = id.substring("energy:".length());
+            if (rest.equals("ars_source")) return com.cell4.common.integration.ThirdPartyIntegration.getSourceKey();
+            if (rest.equals("botania_mana")) return com.cell4.common.integration.ThirdPartyIntegration.getManaKey();
+            if (rest.equals("fe")) return com.cell4.common.integration.ThirdPartyIntegration.getFEKey();
+            return null;
+        }
+
+        // Legacy: try item, then fluid
+        ResourceLocation rl = ResourceLocation.tryParse(id);
+        if (rl == null) return null;
+        var item = BuiltInRegistries.ITEM.getOptional(rl);
+        if (item.isPresent()) return AEItemKey.of(item.get());
+        var fluid = BuiltInRegistries.FLUID.getOptional(rl);
+        if (fluid.isPresent() && fluid.get() != Fluids.EMPTY) {
+            return AEFluidKey.of(fluid.get());
+        }
+        return null;
+    }
+
 
     /**
      * Data class holding parsed blacklist information from a cell's NBT.
@@ -73,15 +135,8 @@ public class Cell4Util {
 
             // Check mod ID blacklist
             if (!modIds.isEmpty()) {
-                ResourceLocation rl = null;
-                if (key instanceof AEItemKey itemKey) {
-                    rl = BuiltInRegistries.ITEM.getKey(itemKey.getItem());
-                } else if (key instanceof AEFluidKey fluidKey) {
-                    rl = BuiltInRegistries.FLUID.getKey(fluidKey.getFluid());
-                }
-                if (rl != null && modIds.contains(rl.getNamespace())) {
-                    return true;
-                }
+                String ns = getNamespace(key);
+                if (ns != null && modIds.contains(ns)) return true;
             }
 
             return false;
@@ -143,19 +198,10 @@ public class Cell4Util {
                     modIds.add(modId);
                 }
             } else {
-                // Plain item/fluid identifier
-                ResourceLocation rl = ResourceLocation.tryParse(id);
-                if (rl != null) {
-                    var item = BuiltInRegistries.ITEM.getOptional(rl);
-                    if (item.isPresent()) {
-                        itemKeys.add(AEItemKey.of(item.get()));
-                        continue;
-                    }
-                    var fluid = BuiltInRegistries.FLUID.getOptional(rl);
-                    if (fluid.isPresent() && fluid.get() != Fluids.EMPTY) {
-                        itemKeys.add(AEFluidKey.of(fluid.get()));
-                    }
-                }
+                // Use parseIdentifier so fluid:/chemical: prefixes are honored,
+                // and legacy plain ids fall back to item→fluid.
+                AEKey key = parseIdentifier(id);
+                if (key != null) itemKeys.add(key);
             }
         }
 
@@ -226,12 +272,12 @@ public class Cell4Util {
                     BuiltInRegistries.FLUID.key(), tagRL);
             return fluidKey.getFluid().builtInRegistryHolder().is(fluidTag);
         }
-
-        return false;
+        // Mekanism chemical tag matching (no-op if Mekanism not installed)
+        return MekanismIntegration.matchesTag(key, tagName);
     }
 
     /**
-     * Get the namespace (mod ID) of an AEKey.
+     * Get the namespace (mod ID) of an AEKey. Supports items, fluids, and Mekanism chemicals.
      */
     public static String getNamespace(AEKey key) {
         if (key instanceof AEItemKey itemKey) {
@@ -241,7 +287,7 @@ public class Cell4Util {
             ResourceLocation rl = BuiltInRegistries.FLUID.getKey(fluidKey.getFluid());
             return rl != null ? rl.getNamespace() : null;
         }
-        return null;
+        return MekanismIntegration.getNamespace(key);
     }
 
     // === Shared NBT list get/set for cell data fields ===
@@ -272,6 +318,7 @@ public class Cell4Util {
             ResourceLocation rl = BuiltInRegistries.FLUID.getKey(fluidKey.getFluid());
             return rl != null && modIdSet.contains(rl.getNamespace());
         }
-        return false;
+        // Fall back to Mekanism chemicals (returns false if Mekanism not installed)
+        return MekanismIntegration.belongsToMod(key, modIdSet);
     }
 }

@@ -4,11 +4,13 @@ import appeng.api.stacks.AEFluidKey;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.KeyCounter;
+import com.cell4.common.integration.MekanismIntegration;
 import com.cell4.common.item.IInfinityCell;
 import com.cell4.common.item.InfinityModIdCell;
 import com.cell4.common.util.Cell4Util;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.material.Fluids;
 
@@ -65,9 +67,18 @@ public class InfinityModIdStorage extends AbstractInfinityStorage {
 
             for (var fluid : BuiltInRegistries.FLUID) {
                 if (fluid == Fluids.EMPTY) continue;
+                ResourceLocation rl = BuiltInRegistries.FLUID.getKey(fluid);
+                if (rl != null && rl.getPath().startsWith("flowing_")) continue;
                 var key = AEFluidKey.of(fluid);
                 if (key != null && Cell4Util.belongsToMod(key, modIdSet) && !blacklist.isBlacklisted(key)) {
                     cachedAvailableStacks.add(key, IInfinityCell.getAsIntMax(key));
+                }
+            }
+
+            // Mekanism chemicals (only if Mekanism + AppMek installed)
+            for (AEKey chemicalKey : MekanismIntegration.getAllChemicalKeys()) {
+                if (Cell4Util.belongsToMod(chemicalKey, modIdSet) && !blacklist.isBlacklisted(chemicalKey)) {
+                    cachedAvailableStacks.add(chemicalKey, IInfinityCell.getAsIntMax(chemicalKey));
                 }
             }
             cacheValid = true;
