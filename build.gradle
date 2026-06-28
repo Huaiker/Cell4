@@ -20,6 +20,11 @@ repositories {
         name = "AE2 Maven"
         url = "https://modmaven.dev/"
     }
+    // Mekanism maven for Chemical API
+    maven {
+        name = "Mekanism"
+        url = "https://modmaven.dev/"
+    }
 }
 
 neoForge {
@@ -53,6 +58,8 @@ sourceSets.main.resources { srcDir 'src/generated/resources' }
 dependencies {
     implementation "org.appliedenergistics:appliedenergistics2:${ae2_version}"
     implementation "org.appliedenergistics:guideme:${guideme_version}"
+    // Mekanism API: compileOnly (AppMek's MekanismKey is loaded via reflection at runtime)
+    compileOnly files("libs/mekanism-api-1.21.1-10.7.18.84.jar")
 }
 
 jar {

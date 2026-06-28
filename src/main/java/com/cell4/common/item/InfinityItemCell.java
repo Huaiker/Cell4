@@ -60,17 +60,27 @@ public class InfinityItemCell extends AEBaseItem implements ICellWorkbenchItem, 
         if (ids.isEmpty()) return Collections.emptyList();
         List<AEKey> keys = new ArrayList<>(ids.size());
         for (String id : ids) {
-            ResourceLocation rl = ResourceLocation.tryParse(id);
-            if (rl != null) {
-                var item = BuiltInRegistries.ITEM.getOptional(rl);
-                if (item.isPresent()) { keys.add(AEItemKey.of(item.get())); continue; }
-                var fluid = BuiltInRegistries.FLUID.getOptional(rl);
-                if (fluid.isPresent() && fluid.get() != Fluids.EMPTY) {
-                    keys.add(AEFluidKey.of(fluid.get()));
+            try {
+                AEKey key = Cell4Util.parseIdentifier(id);
+                // Verify the key type is actually registered in AE2 before adding.
+                // If the required mod (e.g. Ars Nouveau) isn't installed, the key type
+                // won't be registered and adding it to KeyCounter would crash.
+                if (key != null && isKeyTypeRegistered(key)) {
+                    keys.add(key);
                 }
-            }
+            } catch (Throwable ignored) {}
         }
         return keys;
+    }
+
+    /** Check if the AEKeyType for this key is registered (avoid crashes with uninstalled mods). */
+    private static boolean isKeyTypeRegistered(AEKey key) {
+        try {
+            appeng.api.stacks.AEKeyTypes.get(key.getType().getId());
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
     }
 
     public static void setIdentifiers(ItemStack stack, List<String> ids) {
@@ -116,6 +126,19 @@ public class InfinityItemCell extends AEBaseItem implements ICellWorkbenchItem, 
         }
         if (content.isEmpty()) return Optional.empty();
         return Optional.of(new StorageCellTooltipComponent(List.of(), content, false, true));
+    }
+
+    /**
+     * Return the TRUE total count of bound keys (not capped).
+     */
+    public static int getPreviewTotalCount(ItemStack stack) {
+        List<AEKey> records = getRecords(stack);
+        Cell4Util.BlacklistData blacklist = Cell4Util.getBlacklistData(stack);
+        int total = 0;
+        for (AEKey key : records) {
+            if (!blacklist.isBlacklisted(key)) total++;
+        }
+        return total;
     }
 
     @Override

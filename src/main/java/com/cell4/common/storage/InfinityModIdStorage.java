@@ -4,6 +4,7 @@ import appeng.api.stacks.AEFluidKey;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.KeyCounter;
+import com.cell4.common.integration.MekanismIntegration;
 import com.cell4.common.item.IInfinityCell;
 import com.cell4.common.item.InfinityModIdCell;
 import com.cell4.common.util.Cell4Util;
@@ -69,10 +70,20 @@ public class InfinityModIdStorage extends AbstractInfinityStorage {
                 if (fluid == Fluids.EMPTY) continue;
                 ResourceLocation rl = BuiltInRegistries.FLUID.getKey(fluid);
                 if (rl != null && modIdSet.contains(rl.getNamespace())) {
+                    // Skip "flowing_" variants — they are internal Flowing fluids that
+                    // duplicate the Source fluid (e.g. mekanism:flowing_oxygen vs mekanism:oxygen).
+                    if (rl.getPath().startsWith("flowing_")) continue;
                     var key = AEFluidKey.of(fluid);
                     if (key != null && !blacklist.isBlacklisted(key)) {
                         cachedAvailableStacks.add(key, IInfinityCell.getAsIntMax(key));
                     }
+                }
+            }
+
+            // Mekanism chemicals (only if Mekanism + AppMek installed)
+            for (AEKey chemicalKey : MekanismIntegration.getAllChemicalKeys()) {
+                if (Cell4Util.belongsToMod(chemicalKey, modIdSet) && !blacklist.isBlacklisted(chemicalKey)) {
+                    cachedAvailableStacks.add(chemicalKey, IInfinityCell.getAsIntMax(chemicalKey));
                 }
             }
             cacheValid = true;

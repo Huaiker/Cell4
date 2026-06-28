@@ -8,6 +8,7 @@ import appeng.api.stacks.GenericStack;
 import appeng.api.storage.cells.ICellWorkbenchItem;
 import appeng.items.AEBaseItem;
 import appeng.items.storage.StorageCellTooltipComponent;
+import com.cell4.common.integration.MekanismIntegration;
 import com.cell4.common.util.Cell4Util;
 import com.cell4.common.util.NBTKeys;
 import net.minecraft.ChatFormatting;
@@ -21,6 +22,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.material.Fluid;
+import net.minecraft.world.level.material.Fluids;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
@@ -102,20 +104,18 @@ public class InfinityTagCell extends AEBaseItem implements ICellWorkbenchItem, I
     @NotNull
     @Override
     public Optional<TooltipComponent> getTooltipImage(@NotNull ItemStack stack) {
-        List<String> tagNames = getTagNames(stack);
+        List<AEKey> previewKeys = new ArrayList<>();
+        int totalMatchCount = 0;
+        Cell4Util.BlacklistData blacklist = Cell4Util.getBlacklistData(stack);
+        boolean hasTags = !getTagNames(stack).isEmpty();
         List<String> modIds = getModIds(stack);
-        boolean hasTags = !tagNames.isEmpty();
         boolean hasModIds = !modIds.isEmpty();
         Set<String> modIdSet = Set.copyOf(modIds);
 
         if (!hasTags && !hasModIds) return Optional.empty();
 
-        List<AEKey> previewKeys = new ArrayList<>();
-        int totalMatchCount = 0;
-        Cell4Util.BlacklistData blacklist = Cell4Util.getBlacklistData(stack);
-
         if (hasTags) {
-            for (String tagName : tagNames) {
+            for (String tagName : getTagNames(stack)) {
                 ResourceLocation tagRL = ResourceLocation.tryParse(tagName);
                 if (tagRL == null) continue;
 
@@ -130,21 +130,46 @@ public class InfinityTagCell extends AEBaseItem implements ICellWorkbenchItem, I
 
                 TagKey<Fluid> fluidTag = TagKey.create(BuiltInRegistries.FLUID.key(), tagRL);
                 for (Holder<Fluid> holder : BuiltInRegistries.FLUID.getTagOrEmpty(fluidTag)) {
-                    var key = AEFluidKey.of(holder.value());
+                    Fluid fluid = holder.value();
+                    if (fluid == Fluids.EMPTY) continue;
+                    ResourceLocation fluidRl = BuiltInRegistries.FLUID.getKey(fluid);
+                    if (fluidRl != null && fluidRl.getPath().startsWith("flowing_")) continue;
+                    var key = AEFluidKey.of(fluid);
                     if (key == null || blacklist.isBlacklisted(key)) continue;
                     if (hasModIds && !Cell4Util.belongsToMod(key, modIdSet)) continue;
                     totalMatchCount++;
                     if (previewKeys.size() < 18) previewKeys.add(key);
                 }
+
+                for (AEKey chemicalKey : MekanismIntegration.getChemicalKeysByTag(tagName)) {
+                    if (hasModIds && !Cell4Util.belongsToMod(chemicalKey, modIdSet)) continue;
+                    if (blacklist.isBlacklisted(chemicalKey)) continue;
+                    totalMatchCount++;
+                    if (previewKeys.size() < 18) previewKeys.add(chemicalKey);
+                }
             }
         } else if (hasModIds) {
             for (var item : BuiltInRegistries.ITEM) {
-                if (Cell4Util.belongsToMod(AEItemKey.of(item), modIdSet)) {
-                    var key = AEItemKey.of(item);
-                    if (key != null && !blacklist.isBlacklisted(key)) {
-                        totalMatchCount++;
-                        if (previewKeys.size() < 18) previewKeys.add(key);
-                    }
+                var key = AEItemKey.of(item);
+                if (key != null && Cell4Util.belongsToMod(key, modIdSet) && !blacklist.isBlacklisted(key)) {
+                    totalMatchCount++;
+                    if (previewKeys.size() < 18) previewKeys.add(key);
+                }
+            }
+            for (var fluid : BuiltInRegistries.FLUID) {
+                if (fluid == Fluids.EMPTY) continue;
+                ResourceLocation rl = BuiltInRegistries.FLUID.getKey(fluid);
+                if (rl != null && rl.getPath().startsWith("flowing_")) continue;
+                var key = AEFluidKey.of(fluid);
+                if (key != null && Cell4Util.belongsToMod(key, modIdSet) && !blacklist.isBlacklisted(key)) {
+                    totalMatchCount++;
+                    if (previewKeys.size() < 18) previewKeys.add(key);
+                }
+            }
+            for (AEKey chemicalKey : MekanismIntegration.getAllChemicalKeys()) {
+                if (Cell4Util.belongsToMod(chemicalKey, modIdSet) && !blacklist.isBlacklisted(chemicalKey)) {
+                    totalMatchCount++;
+                    if (previewKeys.size() < 18) previewKeys.add(chemicalKey);
                 }
             }
         }
@@ -156,7 +181,69 @@ public class InfinityTagCell extends AEBaseItem implements ICellWorkbenchItem, I
             content.add(new GenericStack(key, IInfinityCell.getAsIntMax(key)));
         }
 
-        return Optional.of(new StorageCellTooltipComponent(List.of(), content, false, true));
+        return Optional.of(new StorageCellTooltipComponent(List.of(), content, totalMatchCount > previewKeys.size(), true));
+    }
+
+    /**
+     * Return the TRUE total count of matching keys (not capped to 18).
+     * Used by the configurator screen to show "...还有N-6个" with the real number.
+     */
+    public static int getPreviewTotalCount(ItemStack stack) {
+        Cell4Util.BlacklistData blacklist = Cell4Util.getBlacklistData(stack);
+        List<String> tagNames = getTagNames(stack);
+        List<String> modIds = getModIds(stack);
+        boolean hasTags = !tagNames.isEmpty();
+        boolean hasModIds = !modIds.isEmpty();
+        Set<String> modIdSet = Set.copyOf(modIds);
+        int total = 0;
+
+        if (hasTags) {
+            for (String tagName : tagNames) {
+                ResourceLocation tagRL = ResourceLocation.tryParse(tagName);
+                if (tagRL == null) continue;
+
+                TagKey<net.minecraft.world.item.Item> itemTag = TagKey.create(BuiltInRegistries.ITEM.key(), tagRL);
+                for (Holder<net.minecraft.world.item.Item> holder : BuiltInRegistries.ITEM.getTagOrEmpty(itemTag)) {
+                    var key = AEItemKey.of(holder.value());
+                    if (key == null || blacklist.isBlacklisted(key)) continue;
+                    if (hasModIds && !Cell4Util.belongsToMod(key, modIdSet)) continue;
+                    total++;
+                }
+
+                TagKey<Fluid> fluidTag = TagKey.create(BuiltInRegistries.FLUID.key(), tagRL);
+                for (Holder<Fluid> holder : BuiltInRegistries.FLUID.getTagOrEmpty(fluidTag)) {
+                    Fluid fluid = holder.value();
+                    if (fluid == Fluids.EMPTY) continue;
+                    ResourceLocation fluidRl = BuiltInRegistries.FLUID.getKey(fluid);
+                    if (fluidRl != null && fluidRl.getPath().startsWith("flowing_")) continue;
+                    var key = AEFluidKey.of(fluid);
+                    if (key == null || blacklist.isBlacklisted(key)) continue;
+                    if (hasModIds && !Cell4Util.belongsToMod(key, modIdSet)) continue;
+                    total++;
+                }
+
+                for (AEKey chemicalKey : MekanismIntegration.getChemicalKeysByTag(tagName)) {
+                    if (hasModIds && !Cell4Util.belongsToMod(chemicalKey, modIdSet)) continue;
+                    if (!blacklist.isBlacklisted(chemicalKey)) total++;
+                }
+            }
+        } else if (hasModIds) {
+            for (var item : BuiltInRegistries.ITEM) {
+                var key = AEItemKey.of(item);
+                if (key != null && Cell4Util.belongsToMod(key, modIdSet) && !blacklist.isBlacklisted(key)) total++;
+            }
+            for (var fluid : BuiltInRegistries.FLUID) {
+                if (fluid == Fluids.EMPTY) continue;
+                ResourceLocation rl = BuiltInRegistries.FLUID.getKey(fluid);
+                if (rl != null && rl.getPath().startsWith("flowing_")) continue;
+                var key = AEFluidKey.of(fluid);
+                if (key != null && Cell4Util.belongsToMod(key, modIdSet) && !blacklist.isBlacklisted(key)) total++;
+            }
+            for (AEKey chemicalKey : MekanismIntegration.getAllChemicalKeys()) {
+                if (Cell4Util.belongsToMod(chemicalKey, modIdSet) && !blacklist.isBlacklisted(chemicalKey)) total++;
+            }
+        }
+        return total;
     }
 
     @Override

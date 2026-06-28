@@ -4,6 +4,7 @@ import com.cell4.Cell4;
 import com.cell4.common.item.*;
 import com.cell4.common.menu.CellConfiguratorMenu;
 import com.cell4.common.util.Cell4Util;
+import com.cell4.common.util.NBTKeys;
 import com.cell4.network.CellConfigSavePacket;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
@@ -11,6 +12,7 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.inventory.tooltip.TooltipComponent;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
@@ -356,7 +358,8 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
         if (helpHovered) {
             List<Component> helpLines = List.of(
                 Component.translatable("gui.cell4.help_shortcuts"),
-                Component.translatable("gui.cell4.help_blacklist")
+                Component.translatable("gui.cell4.help_blacklist"),
+                Component.translatable("gui.cell4.help_prefixes")
             );
             guiGraphics.renderTooltip(this.font, helpLines, Optional.empty(), mouseX, mouseY);
         }
@@ -371,11 +374,11 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
         int btnX = x + 215;
         int btnY = y + 6;
         // Save button
-        renderMiniButton(guiGraphics, btnX, btnY, 30, 12, Component.translatable("gui.cell4.save"), 0x2A6E2A);
+        renderMiniButton(guiGraphics, btnX, btnY, 30, 12, Component.translatable("gui.cell4.save"), 0x2A6E2A, mouseX, mouseY);
         // Reset button
-        renderMiniButton(guiGraphics, btnX + 34, btnY, 30, 12, Component.translatable("gui.cell4.reset"), 0x2A3E5C);
+        renderMiniButton(guiGraphics, btnX + 34, btnY, 30, 12, Component.translatable("gui.cell4.reset"), 0x2A3E5C, mouseX, mouseY);
         // Clear button
-        renderMiniButton(guiGraphics, btnX + 68, btnY, 30, 12, Component.translatable("gui.cell4.clear"), 0x6E2A2A);
+        renderMiniButton(guiGraphics, btnX + 68, btnY, 30, 12, Component.translatable("gui.cell4.clear"), 0x6E2A2A, mouseX, mouseY);
 
         // Save result feedback
         if (saveResultTime > 0 && System.currentTimeMillis() - saveResultTime < SAVE_RESULT_DISPLAY_MS) {
@@ -414,28 +417,114 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
             // Small label above the preview tooltip
             guiGraphics.drawString(this.font, Component.translatable("gui.cell4.preview"), previewX, y + 4, 0x888888, false);
 
-            // Get tooltip lines from the cell item (exactly as shown in inventory)
-            List<Component> tooltipLines = new ArrayList<>(previewCell.getTooltipLines(
-                net.minecraft.world.item.Item.TooltipContext.of(this.minecraft.level),
-                this.minecraft.player,
-                this.minecraft.options.advancedItemTooltips ? TooltipFlag.ADVANCED : TooltipFlag.NORMAL
-            ));
+            // Build a live preview stack that reflects current unsaved edits
+            ItemStack livePreview = buildLivePreviewStack(previewCell);
 
-            // Apply pending name from the name field
-            String pendingName = this.nameField.getValue();
-            if (!pendingName.isEmpty() && !tooltipLines.isEmpty()) {
-                // Preserve the original rarity color but add italic for custom name
-                Style originalStyle = tooltipLines.get(0).getStyle();
-                tooltipLines.set(0, Component.literal(pendingName).withStyle(originalStyle.withItalic(true)));
+            // Get tooltip text lines from the live preview
+            net.minecraft.world.item.Item.TooltipContext ctx =
+                net.minecraft.world.item.Item.TooltipContext.of(this.minecraft.level);
+            TooltipFlag flag = this.minecraft.options.advancedItemTooltips ? TooltipFlag.ADVANCED : TooltipFlag.NORMAL;
+            List<Component> tooltipLines = new ArrayList<>(livePreview.getTooltipLines(ctx, this.minecraft.player, flag));
+
+            // Build a capped tooltip image component (max 6 items) so the preview
+            // doesn't overflow to the left when there are many entries.
+            int previewCap = 6;
+            Optional<TooltipComponent> tooltipImage = buildCappedTooltipImage(livePreview, previewCap);
+            // Append "...还有N-6个" overflow line if capped
+            int totalCount = getPreviewContentCount(livePreview);
+            if (totalCount > previewCap) {
+                tooltipLines.add(Component.translatable("gui.cell4.preview_more", totalCount - previewCap)
+                    .withStyle(net.minecraft.ChatFormatting.GRAY));
             }
 
-            // Render tooltip manually at fixed preview position to avoid Minecraft's
-            // renderTooltip positioning logic that may place it at the hovered slot instead
-            renderTooltipAtFixedPosition(guiGraphics, tooltipLines, previewX, previewY);
+            // Render via vanilla renderTooltip: draws text + item-icon grid
+            guiGraphics.renderTooltip(this.font, tooltipLines, tooltipImage, previewX, previewY);
         }
 
         // Render tooltip
         this.renderTooltip(guiGraphics, mouseX, mouseY);
+    }
+
+    /**
+     * Build a clone of the current cell ItemStack with the in-editor (unsaved) values
+     * applied to its NBT. Used for the live preview tooltip so the user sees their
+     * edits (items, tags, modIds, blacklist, custom name) reflected in real time.
+     */
+    private ItemStack buildLivePreviewStack(ItemStack source) {
+        ItemStack copy = source.copy();
+
+        // Collect non-empty entries from each group's edit fields
+        List<String> items = collectNonEmpty(GROUP_ITEMS);
+        List<String> tags = collectNonEmpty(GROUP_TAGS);
+        List<String> modIds = collectNonEmpty(GROUP_MODIDS);
+        List<String> blacklist = collectNonEmpty(GROUP_BLACKLIST);
+
+        // Apply to NBT based on cell type
+        if (copy.getItem() instanceof InfinityItemCell) {
+            InfinityItemCell.setIdentifiers(copy, items);
+        } else if (copy.getItem() instanceof InfinityTagCell) {
+            InfinityTagCell.setTagNames(copy, tags);
+            InfinityTagCell.setModIds(copy, modIds);
+        } else if (copy.getItem() instanceof InfinityModIdCell) {
+            InfinityModIdCell.setModIds(copy, modIds);
+        }
+
+        // Blacklist is common to all cell types
+        Cell4Util.setStringList(copy, NBTKeys.BLACKLIST, blacklist);
+
+        // Apply pending custom name
+        String pendingName = this.nameField.getValue();
+        if (copy.getItem() instanceof IInfinityCell cell) {
+            cell.setCustomName(copy, pendingName);
+        }
+
+        return copy;
+    }
+
+    private List<String> collectNonEmpty(int groupId) {
+        EntryGroup group = groups.get(groupId);
+        List<String> result = new ArrayList<>();
+        for (String val : group.entries) {
+            if (val != null && !val.isEmpty()) result.add(val);
+        }
+        return result;
+    }
+
+    /**
+     * Count total matching keys the cell would store (before capping).
+     * Delegates to the cell item's getPreviewTotalCount for the TRUE count
+     * (the tooltip image component may be capped to 18).
+     */
+    private int getPreviewContentCount(ItemStack livePreview) {
+        if (livePreview.getItem() instanceof InfinityItemCell) {
+            return InfinityItemCell.getPreviewTotalCount(livePreview);
+        } else if (livePreview.getItem() instanceof InfinityTagCell) {
+            return InfinityTagCell.getPreviewTotalCount(livePreview);
+        } else if (livePreview.getItem() instanceof InfinityModIdCell) {
+            return InfinityModIdCell.getPreviewTotalCount(livePreview);
+        }
+        return 0;
+    }
+
+    /**
+     * Build a tooltip image component for the preview, capped to at most {@code max}
+     * GenericStacks. hasMoreContent is always false here because the caller adds
+     * its own "...还有N-6个" text line — avoiding AE2's native "..." duplicate.
+     */
+    private Optional<TooltipComponent> buildCappedTooltipImage(ItemStack livePreview, int max) {
+        Optional<TooltipComponent> original = livePreview.getTooltipImage();
+        if (original.isEmpty()) return original;
+        TooltipComponent tc = original.get();
+        if (!(tc instanceof appeng.items.storage.StorageCellTooltipComponent cellTc)) {
+            return original;
+        }
+        java.util.List<appeng.api.stacks.GenericStack> content = cellTc.content();
+        if (content.size() <= max) return original;
+        // Truncate to first `max` entries; hasMoreContent=false so AE2 doesn't
+        // add its own "..." line (we add "...还有N-6个" as a text line instead).
+        java.util.List<appeng.api.stacks.GenericStack> capped = new ArrayList<>(content.subList(0, max));
+        return Optional.of(new appeng.items.storage.StorageCellTooltipComponent(
+            cellTc.upgrades(), capped, false, cellTc.showAmounts()));
     }
 
     /**
@@ -557,7 +646,7 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
 
                         // Sequence number
                         String seqNum = (i + 1) + ".";
-                        guiGraphics.drawString(this.font, seqNum, x + CONTENT_X + 4, entryY + 3, 0xAAAAAA, false);
+                        guiGraphics.drawString(this.font, seqNum, x + CONTENT_X + 4, entryY + 3, 0x000000, true);
 
                         // "X" delete button
                         String xText = "x";
@@ -596,9 +685,18 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
         guiGraphics.fill(x, thumbY, x + SCROLLBAR_W, thumbY + thumbH, 0x80FFFFFF);
     }
 
-    private void renderMiniButton(GuiGraphics guiGraphics, int x, int y, int w, int h, Component text, int color) {
+    private void renderMiniButton(GuiGraphics guiGraphics, int x, int y, int w, int h, Component text, int color, int mouseX, int mouseY) {
+        boolean hovered = mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h;
+        // Background
         guiGraphics.fill(x, y, x + w, y + h, 0xFF3C5078);
         guiGraphics.fill(x + 1, y + 1, x + w - 1, y + h - 1, 0xFFAFCAE6);
+        // Hover highlight border (white)
+        if (hovered) {
+            guiGraphics.fill(x, y, x + w, y + 1, 0xFFFFFFFF);           // top
+            guiGraphics.fill(x, y + h - 1, x + w, y + h, 0xFFFFFFFF);   // bottom
+            guiGraphics.fill(x, y, x + 1, y + h, 0xFFFFFFFF);           // left
+            guiGraphics.fill(x + w - 1, y, x + w, y + h, 0xFFFFFFFF);   // right
+        }
         guiGraphics.drawCenteredString(this.font, text, x + w / 2, y + 2, color);
     }
 
@@ -680,20 +778,30 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
 
         // Save button
         if (mouseX >= btnX && mouseX <= btnX + btnW && mouseY >= btnY && mouseY <= btnY + btnH) {
+            playButtonSound();
             onSave();
             return true;
         }
         // Reset button
         if (mouseX >= btnX + 34 && mouseX <= btnX + 34 + btnW && mouseY >= btnY && mouseY <= btnY + btnH) {
+            playButtonSound();
             onReset();
             return true;
         }
         // Clear button
         if (mouseX >= btnX + 68 && mouseX <= btnX + 68 + btnW && mouseY >= btnY && mouseY <= btnY + btnH) {
+            playButtonSound();
             onClear();
             return true;
         }
         return false;
+    }
+
+    /** Play the vanilla button-click sound effect. */
+    private void playButtonSound() {
+        if (this.minecraft != null && this.minecraft.player != null) {
+            this.minecraft.player.playSound(net.minecraft.sounds.SoundEvents.UI_BUTTON_CLICK.value(), 0.5F, 1.0F);
+        }
     }
 
     // --- Save / Reset / Clear ---

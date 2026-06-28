@@ -3,6 +3,7 @@ package com.cell4.common.util;
 import appeng.api.stacks.AEFluidKey;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
+import com.cell4.common.integration.MekanismIntegration;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
@@ -20,6 +21,71 @@ public class Cell4Util {
 
     // Keep backward compatibility alias
     public static final String BLACKLIST_KEY = NBTKeys.BLACKLIST;
+
+    // === Identifier prefix parsing ===
+    // Supported formats:
+    //   mekfluid:namespace:path    → AEFluidKey (explicit Mekanism fluid)
+    //   mekchemical:namespace:path → AppMek MekanismKey (via reflection, requires AppMek)
+    //   energy:ars_source          → ArsE SourceKey (via reflection, requires ArsEnergistique)
+    //   namespace:path             → item first, then fluid (legacy behavior)
+
+    /**
+     * Parse a user-entered identifier string into an AEKey.
+     * <p>
+     * Recognized prefixes:
+     * <ul>
+     *   <li>{@code mekfluid:ns:path} — explicit Mekanism fluid</li>
+     *   <li>{@code mekchemical:ns:path} — Mekanism chemical (requires Mekanism)</li>
+     *   <li>{@code energy:ars_source} — ArsE Source (requires ArsEnergistique)</li>
+     *   <li>{@code energy:botania_mana} — AppBot Mana (requires Applied Botanics, 1.20.1 only)</li>
+     *   <li>{@code ns:path} (no prefix) — try item first, then fluid (legacy)</li>
+     * </ul>
+     * Returns null if the identifier cannot be resolved.
+     */
+    public static AEKey parseIdentifier(String id) {
+        if (id == null || id.isEmpty()) return null;
+
+        // Explicit Mekanism fluid prefix
+        if (id.startsWith("mekfluid:")) {
+            String rest = id.substring("mekfluid:".length());
+            ResourceLocation rl = ResourceLocation.tryParse(rest);
+            if (rl == null) return null;
+            var fluid = BuiltInRegistries.FLUID.getOptional(rl);
+            if (fluid.isPresent() && fluid.get() != Fluids.EMPTY) {
+                return AEFluidKey.of(fluid.get());
+            }
+            return null;
+        }
+
+        // Explicit Mekanism chemical prefix
+        if (id.startsWith("mekchemical:")) {
+            String rest = id.substring("mekchemical:".length());
+            ResourceLocation rl = ResourceLocation.tryParse(rest);
+            if (rl == null) return null;
+            return MekanismIntegration.parseChemicalKey(rl);
+        }
+
+        // Energy identifiers: energy:ars_source energy:botania_mana energy:fe
+        if (id.startsWith("energy:")) {
+            String rest = id.substring("energy:".length());
+            if (rest.equals("ars_source")) return com.cell4.common.integration.ThirdPartyIntegration.getSourceKey();
+            if (rest.equals("botania_mana")) return com.cell4.common.integration.ThirdPartyIntegration.getManaKey();
+            if (rest.equals("fe")) return com.cell4.common.integration.ThirdPartyIntegration.getFEKey();
+            return null;
+        }
+
+        // Legacy: try item, then fluid
+        ResourceLocation rl = ResourceLocation.tryParse(id);
+        if (rl == null) return null;
+        var item = BuiltInRegistries.ITEM.getOptional(rl);
+        if (item.isPresent()) return AEItemKey.of(item.get());
+        var fluid = BuiltInRegistries.FLUID.getOptional(rl);
+        if (fluid.isPresent() && fluid.get() != Fluids.EMPTY) {
+            return AEFluidKey.of(fluid.get());
+        }
+        return null;
+    }
+
 
     public static CompoundTag getCustomTag(ItemStack stack) {
         CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
@@ -67,13 +133,8 @@ public class Cell4Util {
             }
 
             if (!modIds.isEmpty()) {
-                ResourceLocation rl = null;
-                if (key instanceof AEItemKey itemKey) {
-                    rl = BuiltInRegistries.ITEM.getKey(itemKey.getItem());
-                } else if (key instanceof AEFluidKey fluidKey) {
-                    rl = BuiltInRegistries.FLUID.getKey(fluidKey.getFluid());
-                }
-                if (rl != null && modIds.contains(rl.getNamespace())) return true;
+                String ns = getNamespace(key);
+                if (ns != null && modIds.contains(ns)) return true;
             }
 
             return false;
@@ -107,15 +168,10 @@ public class Cell4Util {
                 String modId = id.substring(1);
                 if (!modId.isEmpty()) modIds.add(modId);
             } else {
-                ResourceLocation rl = ResourceLocation.tryParse(id);
-                if (rl != null) {
-                    var item = BuiltInRegistries.ITEM.getOptional(rl);
-                    if (item.isPresent()) { itemKeys.add(AEItemKey.of(item.get())); continue; }
-                    var fluid = BuiltInRegistries.FLUID.getOptional(rl);
-                    if (fluid.isPresent() && fluid.get() != Fluids.EMPTY) {
-                        itemKeys.add(AEFluidKey.of(fluid.get()));
-                    }
-                }
+                // Use parseIdentifier so fluid:/chemical: prefixes are honored,
+                // and legacy plain ids fall back to item→fluid.
+                AEKey key = parseIdentifier(id);
+                if (key != null) itemKeys.add(key);
             }
         }
 
@@ -177,7 +233,22 @@ public class Cell4Util {
             ResourceLocation rl = BuiltInRegistries.FLUID.getKey(fluidKey.getFluid());
             return rl != null && modIdSet.contains(rl.getNamespace());
         }
-        return false;
+        // Fall back to Mekanism chemicals (returns false if Mekanism not installed)
+        return MekanismIntegration.belongsToMod(key, modIdSet);
+    }
+
+    /**
+     * Get the namespace (mod id) of an AEKey. Supports items, fluids, and Mekanism chemicals.
+     */
+    public static String getNamespace(AEKey key) {
+        if (key instanceof AEItemKey itemKey) {
+            ResourceLocation rl = BuiltInRegistries.ITEM.getKey(itemKey.getItem());
+            return rl != null ? rl.getNamespace() : null;
+        } else if (key instanceof AEFluidKey fluidKey) {
+            ResourceLocation rl = BuiltInRegistries.FLUID.getKey(fluidKey.getFluid());
+            return rl != null ? rl.getNamespace() : null;
+        }
+        return MekanismIntegration.getNamespace(key);
     }
 
     private static boolean matchesTagBlacklist(AEKey key, String tagName) {
@@ -190,6 +261,7 @@ public class Cell4Util {
             TagKey<net.minecraft.world.level.material.Fluid> fluidTag = TagKey.create(BuiltInRegistries.FLUID.key(), tagRL);
             return fluidKey.getFluid().builtInRegistryHolder().is(fluidTag);
         }
-        return false;
+        // Mekanism chemical tag matching (no-op if Mekanism not installed)
+        return MekanismIntegration.matchesTag(key, tagName);
     }
 }

@@ -9,7 +9,6 @@ import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 
 @EventBusSubscriber(modid = Cell4.MODID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public class Cell4Client {
-
     @SubscribeEvent
     public static void registerScreens(RegisterMenuScreensEvent event) {
         event.register(Cell4MenuTypes.CELL_CONFIGURATOR.get(), CellConfiguratorScreen::new);

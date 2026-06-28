@@ -13,25 +13,19 @@ import org.apache.logging.log4j.Logger;
 
 @Mod(Cell4.MODID)
 public class Cell4 {
-
     public static final String MODID = "cell4";
     public static final Logger LOGGER = LogManager.getLogger();
 
     public Cell4(IEventBus modEventBus) {
-        // Register deferred registers
         Cell4Items.ITEMS.register(modEventBus);
         Cell4CreativeTab.CREATIVE_TABS.register(modEventBus);
         Cell4MenuTypes.MENU_TYPES.register(modEventBus);
-
-        // Register setup event
         modEventBus.addListener(this::commonSetup);
-
         LOGGER.info("Cell\u2074 initialized");
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
         event.enqueueWork(() -> {
-            // Register our custom cell handler with AE2
             StorageCells.addCellHandler(InfinityCellHandler.INSTANCE);
             LOGGER.info("Cell\u2074 cell handler registered with AE2");
         });
