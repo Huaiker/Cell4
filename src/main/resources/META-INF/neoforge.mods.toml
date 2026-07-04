@@ -30,3 +30,22 @@ mandatory=true
 versionRange="[19.0.0,20.0.0)"
 ordering="AFTER"
 side="BOTH"
+
+# Optional Mekanism integration. When present (together with AppMek / Applied Mekanistics),
+# Infinity Cells will also expose Mekanism chemicals (gas / infuse type / pigment / slurry).
+# When absent, the integration is silently disabled and the mod still loads normally.
+[[dependencies.cell4]]
+modId="mekanism"
+mandatory=false
+versionRange="[10.7.0,)"
+ordering="AFTER"
+side="BOTH"
+
+# Optional AppMek (Applied Mekanistics) integration. Required for Mekanism chemical
+# AEKeys to actually be produced; without it Mekanism chemicals are silently ignored.
+[[dependencies.cell4]]
+modId="appmek"
+mandatory=false
+versionRange="[1.5.0,)"
+ordering="AFTER"
+side="BOTH"
