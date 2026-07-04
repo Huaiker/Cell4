@@ -40,7 +40,8 @@
 
   "gui.cell4.help_shortcuts": "Tab\uff1a\u5207\u6362\u5b57\u6bb5 | Enter\uff1a\u4fdd\u5b58 | Esc\uff1a\u5173\u95ed",
   "gui.cell4.help_blacklist": "\u9ed1\u540d\u5355\uff1a\u65e0\u524d\u7f00=\u7269\u54c1 | #=\u6807\u7b7e | @=\u6a21\u7ec4ID",
-  "gui.cell4.help_prefixes": "\u524d\u7f00\uff1amekfluid: mekchemical: | \u6807\u8bc6\u7b26\uff1aenergy:ars_source energy:botania_mana energy:fe",
+  "gui.cell4.help_prefixes": "\u524d\u7f00\uff1amekfluid: (Applied Mekanistics) mekchemical: (Applied Mekanistics)",
+  "gui.cell4.help_prefixes2": "\u6807\u8bc6\u7b26\uff1aenergy:ars_source (Ars Energistique) energy:botania_mana (Applied Botanics Addon) energy:fe (AppFlux)",
   "gui.cell4.group_items": "\u7269\u54c1",
   "gui.cell4.group_tags": "\u6807\u7b7e",
   "gui.cell4.group_modids": "\u6a21\u7ec4ID",

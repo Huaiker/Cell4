@@ -352,7 +352,8 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
             List<Component> helpLines = List.of(
                 Component.translatable("gui.cell4.help_shortcuts"),
                 Component.translatable("gui.cell4.help_blacklist"),
-                Component.translatable("gui.cell4.help_prefixes")
+                Component.translatable("gui.cell4.help_prefixes"),
+                Component.translatable("gui.cell4.help_prefixes2")
             );
             guiGraphics.renderTooltip(this.font, helpLines, Optional.empty(), mouseX, mouseY);
         }
