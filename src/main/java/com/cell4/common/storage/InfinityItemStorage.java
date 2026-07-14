@@ -54,9 +54,30 @@ public class InfinityItemStorage extends AbstractInfinityStorage {
             }
             cacheValid = true;
         }
-        // Copy cached data to output
+        // Use set() instead of add() to prevent overflow.
+        // AE2's KeyCounter.add() does raw long arithmetic: Long.MAX_VALUE + any positive
+        // amount overflows to a negative long, causing AE2 to hide the stack from the terminal.
+        // set() directly replaces the value, so it never accumulates beyond Long.MAX_VALUE.
+        //
+        // We always set to Long.MAX_VALUE (the cached value), regardless of what other cells
+        // may have already added. This means:
+        // - If our cell is called AFTER other cells: their add() results are overwritten — fine,
+        //   infinite + finite = infinite.
+        // - If our cell is called BEFORE other cells: we set MAX, then their add() may overflow.
+        //   AE2 will hide the stack until the next cache refresh, when our cell runs again and
+        //   detects the negative (overflowed) value, resetting it back to MAX.
+        // - If the counter is already in a negative (broken) state, we reset it to MAX.
         for (var entry : cachedAvailableStacks) {
-            out.add(entry.getKey(), entry.getLongValue());
+            AEKey key = entry.getKey();
+            long existing = out.get(key);
+            if (existing < 0) {
+                // Counter overflowed from a previous add() — reset to MAX.
+                out.set(key, Long.MAX_VALUE);
+            } else if (existing < Long.MAX_VALUE) {
+                // Overwrite whatever was there (0 or a finite amount from other cells) with MAX.
+                out.set(key, Long.MAX_VALUE);
+            }
+            // else existing == Long.MAX_VALUE — already at max, no action needed.
         }
     }
 

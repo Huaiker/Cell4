@@ -12,21 +12,21 @@ logoFile="cell4_logo.png"
 
 [[dependencies.cell4]]
 modId="neoforge"
-mandatory=true
+type="required"
 versionRange="[21.1.169,)"
 ordering="NONE"
 side="BOTH"
 
 [[dependencies.cell4]]
 modId="minecraft"
-mandatory=true
+type="required"
 versionRange="[1.21.1,1.22)"
 ordering="NONE"
 side="BOTH"
 
 [[dependencies.cell4]]
 modId="ae2"
-mandatory=true
+type="required"
 versionRange="[19.0.0,20.0.0)"
 ordering="AFTER"
 side="BOTH"
@@ -36,7 +36,7 @@ side="BOTH"
 # When absent, the integration is silently disabled and the mod still loads normally.
 [[dependencies.cell4]]
 modId="mekanism"
-mandatory=false
+type="optional"
 versionRange="[10.7.0,)"
 ordering="AFTER"
 side="BOTH"
@@ -45,7 +45,7 @@ side="BOTH"
 # AEKeys to actually be produced; without it Mekanism chemicals are silently ignored.
 [[dependencies.cell4]]
 modId="appmek"
-mandatory=false
+type="optional"
 versionRange="[1.5.0,)"
 ordering="AFTER"
 side="BOTH"

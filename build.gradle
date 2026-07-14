@@ -56,8 +56,9 @@ neoForge {
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 dependencies {
-    implementation "org.appliedenergistics:appliedenergistics2:${ae2_version}"
-    implementation "org.appliedenergistics:guideme:${guideme_version}"
+    // AE2 + guideme: use local jars (modmaven group path differs from build.gradle coords)
+    implementation files("/home/z/my-project/libs_121/ae2.jar")
+    implementation files("/home/z/my-project/libs_121/guideme.jar")
     // Mekanism API: compileOnly (AppMek's MekanismKey is loaded via reflection at runtime)
     compileOnly files("libs/mekanism-api-1.21.1-10.7.18.84.jar")
 }
