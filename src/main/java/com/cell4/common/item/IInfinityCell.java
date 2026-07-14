@@ -67,8 +67,11 @@ public interface IInfinityCell {
     default void setFuzzyMode(ItemStack itemStack, FuzzyMode fuzzyMode) { /* NO-OP */ }
 
     static long getAsIntMax(AEKey key) {
-        // Long.MAX_VALUE for both items and fluids — effectively unlimited within AE2's long-based amount system.
-        // For fluids this is ~1.14e14 buckets, far beyond any practical need.
+        // Long.MAX_VALUE — the infinite cell reports true maximum amount.
+        // Displays as "9.2E" in AE2's terminal (4-character format).
+        // Overflow protection is handled in each Storage class's getAvailableStacks()
+        // by using set() instead of add(), so that the counter never accumulates
+        // beyond Long.MAX_VALUE.
         return Long.MAX_VALUE;
     }
 }

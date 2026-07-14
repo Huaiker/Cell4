@@ -83,8 +83,15 @@ public class InfinityModIdStorage extends AbstractInfinityStorage {
             }
             cacheValid = true;
         }
+        // Use set() instead of add() — see InfinityItemStorage for the full rationale.
         for (var entry : cachedAvailableStacks) {
-            out.add(entry.getKey(), entry.getLongValue());
+            AEKey key = entry.getKey();
+            long existing = out.get(key);
+            if (existing < 0) {
+                out.set(key, Long.MAX_VALUE);
+            } else if (existing < Long.MAX_VALUE) {
+                out.set(key, Long.MAX_VALUE);
+            }
         }
     }
 
