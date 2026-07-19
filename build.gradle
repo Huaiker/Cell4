@@ -2,7 +2,6 @@ plugins {
     id 'java-library'
     id 'eclipse'
     id 'idea'
-    id 'maven-publish'
     id 'net.neoforged.moddev' version '2.0.28-beta'
 }
 
@@ -20,11 +19,11 @@ repositories {
         name = "AE2 Maven"
         url = "https://modmaven.dev/"
     }
-    // Mekanism maven for Chemical API
     maven {
-        name = "Mekanism"
-        url = "https://modmaven.dev/"
+        name = "Modrinth Maven"
+        url = "https://api.modrinth.com/maven"
     }
+    mavenCentral()
 }
 
 neoForge {
@@ -56,36 +55,25 @@ neoForge {
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 dependencies {
-    // AE2 + guideme: use local jars (modmaven group path differs from build.gradle coords)
-    implementation files("/home/z/my-project/libs_121/ae2.jar")
-    implementation files("/home/z/my-project/libs_121/guideme.jar")
-    // Mekanism API: compileOnly (AppMek's MekanismKey is loaded via reflection at runtime)
-    compileOnly files("libs/mekanism-api-1.21.1-10.7.18.84.jar")
+    // AE2 (from Modrinth Maven — modmaven only has up to 19.2.0-beta)
+    implementation "maven.modrinth:XxWD5pD3:${ae2_version}"
+    // GuideME (from Modrinth Maven)
+    implementation "maven.modrinth:Ck4E7v7R:${guideme_version}"
+    // ae2wtlib (from modmaven — needed for CraftingTerminalHandlerMixin)
+    compileOnly "de.mari_023:ae2wtlib:${ae2wtlib_version}"
+    // Mekanism API (from modmaven)
+    compileOnly "mekanism:Mekanism:${mekanism_version}:api"
 }
 
 jar {
     manifest {
-        attributes([
-                "Specification-Title"     : mod_id,
-                "Specification-Vendor"    : "Cell4",
-                "Specification-Version"   : "1",
-                "Implementation-Title"    : project.name,
-                "Implementation-Version"  : project.jar.archiveVersion,
-                "Implementation-Vendor"   : "Cell4",
-                "Implementation-Timestamp": new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
-        ])
-    }
-}
-
-publishing {
-    publications {
-        register('mavenJava', MavenPublication) {
-            artifact jar
-        }
-    }
-    repositories {
-        maven {
-            url "file:///${project.projectDir}/mcmodsrepo"
-        }
+        attributes(
+            'Specification-Title'     : mod_id,
+            'Specification-Vendor'    : 'Cell4',
+            'Specification-Version'   : '1',
+            'Implementation-Title'    : project.name,
+            'Implementation-Version'  : project.jar.archiveVersion,
+            'Implementation-Vendor'   : 'Cell4'
+        )
     }
 }

@@ -62,11 +62,21 @@ public interface IInfinityCell {
     default void setFuzzyMode(ItemStack itemStack, FuzzyMode fuzzyMode) { /* NO-OP */ }
 
     static long getAsIntMax(AEKey key) {
-        // Long.MAX_VALUE — the infinite cell reports true maximum amount.
-        // Displays as "9.2E" in AE2's terminal (4-character format).
-        // Overflow protection is handled in each Storage class's getAvailableStacks()
-        // by using set() instead of add(), so that the counter never accumulates
-        // beyond Long.MAX_VALUE.
+        // Long.MAX_VALUE — 无限元件报告 Long.MAX_VALUE 作为实际上限。
+        // 在 AE2 终端显示为 "9.2E"（4 字符格式）。
+        //
+        // 存储上限架构 (v1.0.5)：
+        // - AE2 的 KeyCounter 内部使用 long 算术。
+        // - KeyCounterMixin 拦截 add/get/remove/set，将溢出路由到
+        //   Cell4BigStorage，后者在全局 map 中跟踪真实的 BigInteger 数值。
+        // - KeyCounter 中的 long 字段被 clamp 到 Long.MAX_VALUE（永不溢出，
+        //   永不变负），同时精确的 BigInteger 值被保留。
+        // - 实际上，存储上限被提升到 BigInteger，而报告给 AE2 基于 long API
+        //   的实际上限保持为 Long.MAX_VALUE。
+        //
+        // 这修复了两个 bug：
+        // 1. ae2wtlib restock overlay 崩溃（ReadableNumberConverter 拒绝负数）
+        // 2. 自动合成"缺东西"（负数可用量被当作"无物品"）
         return Long.MAX_VALUE;
     }
 }

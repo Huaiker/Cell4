@@ -10,6 +10,10 @@ authors="Huaiker"
 description='''An AE2 addon adding Infinity Cells that support filtering by item, tag, and mod ID.'''
 logoFile="cell4_logo.png"
 
+# Mixin config — 将 KeyCounter 存储上限提升到 BigInteger
+[[mixins]]
+config="cell4.mixins.json"
+
 [[dependencies.cell4]]
 modId="neoforge"
 type="required"
@@ -28,6 +32,14 @@ side="BOTH"
 modId="ae2"
 type="required"
 versionRange="[19.0.0,20.0.0)"
+ordering="AFTER"
+side="BOTH"
+
+# ae2wtlib (可选 — 修复 restock overlay 显示 "0" 的问题)
+[[dependencies.cell4]]
+modId="ae2wtlib"
+type="optional"
+versionRange="[19.5.0,)"
 ordering="AFTER"
 side="BOTH"
 
