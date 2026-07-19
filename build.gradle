@@ -1,7 +1,6 @@
 plugins {
     id 'eclipse'
     id 'idea'
-    id 'maven-publish'
     id 'net.minecraftforge.gradle' version '[6.0,6.2)'
 }
 
@@ -45,51 +44,54 @@ minecraft {
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 repositories {
+    // modmaven (AE2, Mekanism)
     maven {
-        name = "AE2 Maven"
+        name = "modmaven"
         url = "https://modmaven.dev/"
     }
+    // Modrinth Maven (ae2wtlib — modmaven元数据错误标记为Java 21, 用Modrinth maven绕过)
     maven {
         name = "Modrinth Maven"
         url = "https://api.modrinth.com/maven"
+        content {
+            includeGroup "maven.modrinth"
+        }
+    }
+    // SpongePowered Maven (mixin annotation processor)
+    maven {
+        name = "SpongePowered"
+        url = "https://repo.spongepowered.org/repository/maven-public/"
     }
 }
 
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
-
-    // AE2 dependency
+    // AE2
     implementation fg.deobf("appeng:appliedenergistics2-forge:${ae2_version}")
+    // Mekanism API (from modmaven)
+    compileOnly fg.deobf("mekanism:Mekanism:${mekanism_version}:api")
+    // ae2wtlib (from Modrinth Maven — modmaven元数据有Java 21 bug)
+    compileOnly "maven.modrinth:pNabrMMw:${ae2wtlib_version}"
+    // Mixin annotation processor
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+}
 
-    // Mekanism API: compileOnly (AppMek's MekanismKey is loaded via reflection at runtime)
-    compileOnly files("libs/mekanism-api-1.20.1-10.4.16.80.jar")
+configurations {
+    annotationProcessor.extendsFrom compileOnly
 }
 
 jar {
     manifest {
-        attributes([
-                "Specification-Title"     : mod_id,
-                "Specification-Vendor"    : "Cell4",
-                "Specification-Version"   : "1",
-                "Implementation-Title"    : project.name,
-                "Implementation-Version"  : project.jar.archiveVersion,
-                "Implementation-Vendor"   : "Cell4",
-                "Implementation-Timestamp": new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
-        ])
+        attributes(
+            'Specification-Title'     : mod_id,
+            'Specification-Vendor'    : 'Cell4',
+            'Specification-Version'   : '1',
+            'Implementation-Title'    : project.name,
+            'Implementation-Version'  : project.jar.archiveVersion,
+            'Implementation-Vendor'   : 'Cell4',
+            'MixinConfigs'            : 'cell4.mixins.json'
+        )
     }
 }
 
 jar.finalizedBy('reobfJar')
-
-publishing {
-    publications {
-        register('mavenJava', MavenPublication) {
-            artifact jar
-        }
-    }
-    repositories {
-        maven {
-            url "file:///${project.projectDir}/mcmodsrepo"
-        }
-    }
-}
