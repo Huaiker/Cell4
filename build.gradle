@@ -62,6 +62,20 @@ repositories {
         name = "SpongePowered"
         url = "https://repo.spongepowered.org/repository/maven-public/"
     }
+    // JEI
+    maven {
+        name = "BlameJared"
+        url = "https://maven.blamejared.com"
+    }
+    // REI (Architectury / ClothConfig)
+    maven {
+        name = "Shedaniel"
+        url = "https://maven.shedaniel.me"
+    }
+    maven {
+        name = "TerraformersMC"
+        url = "https://maven.terraformersmc.com/releases"
+    }
 }
 
 dependencies {
@@ -74,6 +88,11 @@ dependencies {
     compileOnly "maven.modrinth:pNabrMMw:${ae2wtlib_version}"
     // Mixin annotation processor
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    // 可选兼容（仅编译期引用，运行时缺失也不会崩溃）
+    compileOnly "mezz.jei:jei-1.20.1-forge:15.20.0.106"
+    compileOnly "me.shedaniel:RoughlyEnoughItems-forge:12.1.785"
+    // EMI 官方 maven 在国内不稳定，改用 Modrinth 下载的 jar（libs/ 目录）
+    compileOnly files("libs/emi-1.1.24+1.20.1+forge.jar")
 }
 
 configurations {

@@ -3,13 +3,16 @@ package com.cell4.client;
 import com.cell4.Cell4;
 import com.cell4.common.item.*;
 import com.cell4.common.menu.CellConfiguratorMenu;
+import com.cell4.common.util.Cell4Config;
 import com.cell4.common.util.Cell4Util;
 import com.cell4.common.util.NBTKeys;
+import com.cell4.common.util.PortableCellPower;
 import com.cell4.network.Cell4Network;
 import com.cell4.network.CellConfigSavePacket;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
@@ -23,12 +26,66 @@ import java.util.*;
 public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfiguratorMenu> {
 
     private static final ResourceLocation GUI_TEXTURE = new ResourceLocation(Cell4.MODID, "textures/guis/cell_configurator.png");
+    // AE2 原版元件工作台背景（176x251）
+    private static final ResourceLocation AE2_CELLWORKBENCH =
+            new ResourceLocation("ae2", "textures/guis/cellworkbench.png");
+    // AE2 原版槽位底板（states.png 的 SLOT_BACKGROUND）
+    private static final ResourceLocation AE2_STATES =
+            new ResourceLocation("ae2", "textures/guis/states.png");
+
+    private static final int SIDEBAR_W = CellConfiguratorMenu.SIDEBAR_WIDTH;
+    private static final int MAIN_W = 320;
+    private static final int MAIN_H = 280;
+
+    // AE2 原版元件工作台布局（相对背景左上角）
+    private static final int PANEL_W = 176;
+    private static final int PANEL_H = 251;
+    private static final int PANEL_CELL_X = 152;
+    private static final int PANEL_CELL_Y = 8;
+    private static final int PANEL_GRID_X = 8;
+    private static final int PANEL_GRID_Y = 29;
+    private static final int PANEL_INV_X = 8;
+    private static final int PANEL_INV_Y = 169;
+    private static final int PANEL_HOTBAR_Y = 227;
+    // 工作台 UI 右侧控制栏宽度（保存/翻页/材质输入等）
+    private static final int WORKBENCH_SIDE_W = 88;
+
+    // 第一个 UI（列表编辑器）的槽位坐标（与 CellConfiguratorMenu 一致）
+    private static final int LIST_CELL_X = 9 + SIDEBAR_W;
+    private static final int LIST_CELL_Y = 23;
+    private static final int LIST_INV_X = 64 + SIDEBAR_W;
+    private static final int LIST_INV_Y = 192;
+    private static final int LIST_HOTBAR_Y = 250;
+
+    private static final int UI_MODE_LIST = 0;
+    private static final int UI_MODE_WORKBENCH = 1;
+    private static final int GRID_COLS = 9;
+    private static final int GRID_ROWS = 7;
+    private static final int GRID_CELL = 18;
+    private static final int GRID_LIMIT = GRID_COLS * GRID_ROWS;
+
+    // 条目 → ItemStack 解析缓存：UI2 每帧要渲染 63 格，避免每帧重复解析 SNBT。
+    private static final int MAX_STACK_CACHE = 256;
+    private static final Map<String, ItemStack> STACK_CACHE = new LinkedHashMap<>(64, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, ItemStack> eldest) {
+            return size() > MAX_STACK_CACHE;
+        }
+    };
+    private int uiMode = UI_MODE_LIST;
+    private int workbenchPage = 0;
+    private final List<String> gridItems = new ArrayList<>();
+    private final List<String> gridOtherItems = new ArrayList<>();
+    // 原始槽位（用于在两个 UI 之间切换坐标）
+    private List<net.minecraft.world.inventory.Slot> baseSlots;
+    private EditBox textureField;
+    private String snapshotTexture = "";
 
     // UI dimensions
     private static final int CONTENT_X = 8;
     private static final int CONTENT_Y = 44;
     private static final int CONTENT_W = 300;
-    private static final int VIEWPORT_H = 138;
+    private static final int VIEWPORT_H = 138; // visible scroll area height
     private static final int ENTRY_H = 14;
     private static final int GROUP_HEADER_H = 14;
     private static final int GROUP_GAP = 4;
@@ -43,6 +100,7 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
     private static final int GROUP_TAGS = 1;
     private static final int GROUP_MODIDS = 2;
     private static final int GROUP_BLACKLIST = 3;
+    private static final int GROUP_POWER = 4;
 
     private final List<EntryGroup> groups = new ArrayList<>();
 
@@ -65,6 +123,7 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
     private List<String> snapshotTags = new ArrayList<>();
     private List<String> snapshotModIds = new ArrayList<>();
     private List<String> snapshotBlacklist = new ArrayList<>();
+    private List<String> snapshotPower = new ArrayList<>();
     private String snapshotName = "";
 
     // Help button hover state
@@ -91,6 +150,7 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
                 case GROUP_TAGS -> CellConfiguratorMenu.canEditCell4Tag(cell);
                 case GROUP_MODIDS -> CellConfiguratorMenu.canEditCell4ModId(cell);
                 case GROUP_BLACKLIST -> CellConfiguratorMenu.canEditBlacklist(cell);
+                case GROUP_POWER -> CellConfiguratorMenu.canEditPower(cell);
                 default -> false;
             };
         }
@@ -151,7 +211,7 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
 
     public CellConfiguratorScreen(CellConfiguratorMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
-        this.imageWidth = 320;
+        this.imageWidth = MAIN_W + SIDEBAR_W;
         this.imageHeight = 280;
         this.inventoryLabelY = 194;
         this.titleLabelY = 6;
@@ -160,6 +220,7 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
         groups.add(new EntryGroup(GROUP_TAGS, "gui.cell4.group_tags"));
         groups.add(new EntryGroup(GROUP_MODIDS, "gui.cell4.group_modids"));
         groups.add(new EntryGroup(GROUP_BLACKLIST, "gui.cell4.group_blacklist"));
+        groups.add(new EntryGroup(GROUP_POWER, "gui.cell4.group_power"));
     }
 
     public static void setLastSaveResult(boolean success, String message) {
@@ -169,35 +230,189 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
     }
 
     private EditBox createEntryEditBox(int index, String value) {
-        int fieldX = leftPos + CONTENT_X + 24;
+        int fieldX = leftPos + SIDEBAR_W + CONTENT_X + 24;
         int fieldW = CONTENT_W - 24 - 14 - SCROLLBAR_W - 4;
         EditBox field = new EditBox(this.font, fieldX, 0, fieldW, 12, Component.literal("entry_" + index));
-        field.setMaxLength(1024);
+        // 条目可能携带完整 SNBT（如 AE 便携元件内部数据），不能按短 ID 截断：
+        // EditBox.setValue() 会按 maxLength 截断，截断后的 SNBT 无法解析。
+        field.setMaxLength(32767);
         field.setBordered(false);
-        field.setTextColor(0xFFFFFF);
+        field.setTextColor(0xFFFFFFFF);
+        field.setTextColorUneditable(0xFFFFFFFF);
         field.setValue(value != null ? value : "");
+        // 新建的 EditBox 默认在 (x, 0) 且 visible=true。UI2 下这些条目框不属于可见布局，
+        // 若保持可见，它们会在屏幕最上方（y=0）画出白色条目文字。
+        // 统一先隐藏，可见性完全由 updateFieldPositions() 按当前 UI 模式决定。
+        field.visible = false;
         return field;
+    }
+
+    /** 根据当前 UI 模式设置窗口尺寸（必须在 super.init() 之前调用）。 */
+    private void applyScreenMetrics() {
+        if (uiMode == UI_MODE_WORKBENCH) {
+            this.imageWidth = SIDEBAR_W + PANEL_W + WORKBENCH_SIDE_W;
+            this.imageHeight = PANEL_H;
+        } else {
+            this.imageWidth = SIDEBAR_W + MAIN_W;
+            this.imageHeight = MAIN_H;
+        }
+    }
+
+    /** 组件名输入框（所有元件都可编辑，用于自定义材质）。 */
+    private void applyTextureFieldValue(ItemStack cell) {
+        if (this.textureField == null) return;
+        String value = cell.isEmpty() || !(cell.getItem() instanceof IInfinityCell c) ? "" : c.getTextureName(cell);
+        this.textureField.setValue(value);
+        this.textureField.setEditable(!cell.isEmpty());
+        this.snapshotTexture = value;
+    }
+
+    /**
+     * 客户端槽位换位：Slots 的 x/y 是 final 字段，无法直接改坐标，
+     * 因此这里用包装槽位替换 menu.slots 中的条目（服务端仍保留自己的槽位，
+     * 点击只按 index 同步，坐标纯客户端表现）。
+     */
+    private void applySlotLayout() {
+        List<net.minecraft.world.inventory.Slot> slots = this.menu.slots;
+        if (slots.size() < 37) return;
+        if (baseSlots == null) baseSlots = new ArrayList<>(slots);
+        boolean wb = uiMode == UI_MODE_WORKBENCH;
+
+        for (int i = 0; i < baseSlots.size(); i++) {
+            int x;
+            int y;
+            if (i == 0) {
+                x = wb ? SIDEBAR_W + PANEL_CELL_X : LIST_CELL_X;
+                y = wb ? PANEL_CELL_Y : LIST_CELL_Y;
+            } else if (i <= 27) {
+                int k = i - 1;
+                x = (wb ? SIDEBAR_W + PANEL_INV_X : LIST_INV_X) + (k % 9) * 18;
+                y = (wb ? PANEL_INV_Y : LIST_INV_Y) + (k / 9) * 18;
+            } else if (i <= 36) {
+                x = (wb ? SIDEBAR_W + PANEL_INV_X : LIST_INV_X) + (i - 28) * 18;
+                y = wb ? PANEL_HOTBAR_Y : LIST_HOTBAR_Y;
+            } else {
+                continue;
+            }
+            slots.set(i, new RepositionedSlot(baseSlots.get(i), x, y));
+        }
+    }
+
+    /** 只改坐标的槽位包装：行为全部委托给原槽位。 */
+    private static class RepositionedSlot extends net.minecraft.world.inventory.Slot {
+        private final net.minecraft.world.inventory.Slot delegate;
+
+        RepositionedSlot(net.minecraft.world.inventory.Slot delegate, int x, int y) {
+            super(delegate.container, delegate.getContainerSlot(), x, y);
+            this.delegate = delegate;
+            this.index = delegate.index;
+        }
+
+        @Override
+        public boolean mayPlace(ItemStack stack) {
+            return delegate.mayPlace(stack);
+        }
+
+        @Override
+        public boolean mayPickup(net.minecraft.world.entity.player.Player player) {
+            return delegate.mayPickup(player);
+        }
+
+        @Override
+        public int getMaxStackSize() {
+            return delegate.getMaxStackSize();
+        }
+
+        @Override
+        public ItemStack getItem() {
+            return delegate.getItem();
+        }
+
+        @Override
+        public boolean hasItem() {
+            return delegate.hasItem();
+        }
+
+        @Override
+        public void set(ItemStack stack) {
+            delegate.set(stack);
+        }
+
+        @Override
+        public void setChanged() {
+            delegate.setChanged();
+        }
+
+        @Override
+        public ItemStack remove(int amount) {
+            return delegate.remove(amount);
+        }
+
+        @Override
+        public boolean isActive() {
+            return delegate.isActive();
+        }
+
+        @Override
+        public boolean isHighlightable() {
+            return delegate.isHighlightable();
+        }
     }
 
     @Override
     protected void init() {
+        applyScreenMetrics();
         super.init();
+        applySlotLayout();
 
         int x = this.leftPos;
         int y = this.topPos;
 
-        // Name field next to item slot (moved down 4px)
-        this.nameField = new EditBox(this.font, x + 44, y + 30, 168, 12, Component.literal("cell4name"));
+        // Name field next to item slot (original list layout)
+        this.nameField = new EditBox(this.font, x + SIDEBAR_W + 44, y + 30, 96, 12, Component.literal("cell4name"));
         this.nameField.setMaxLength(256);
         this.nameField.setBordered(false);
-        this.nameField.setTextColor(0xFFFFFF);
+        this.nameField.setTextColor(0xFFFFFFFF);
+        this.nameField.visible = uiMode == UI_MODE_LIST;
         this.addRenderableWidget(this.nameField);
+
+        // 材质名称输入框（两种 UI 都显示）
+        if (uiMode == UI_MODE_WORKBENCH) {
+            this.textureField = new EditBox(this.font, x + SIDEBAR_W + PANEL_W + 6, y + 41, 76, 12,
+                    Component.literal("cell4texture"));
+        } else {
+            this.textureField = new EditBox(this.font, x + SIDEBAR_W + 145, y + 30, 66, 12,
+                    Component.literal("cell4texture"));
+        }
+        this.textureField.setMaxLength(64);
+        this.textureField.setBordered(false);
+        this.textureField.setTextColor(0xFFFFFFFF);
+        this.addRenderableWidget(this.textureField);
+        applyTextureFieldValue(this.menu.getCellInSlot());
+        // 打开界面时先生成材质包，保证 F3+T 第一次就能读到新材质。
+        Cell4Config.refresh();
+        clearItemStackCache();
 
         for (EntryGroup group : groups) {
             group.rebuildFields();
         }
+        // 重建后立即按当前模式定位：UI1 显示可见行，UI2 统一隐藏（避免 (x,0) 处出现白色文字）。
+        updateFieldPositions();
 
         this.lastCellItem = ItemStack.EMPTY;
+    }
+
+    private boolean isPortableCell() {
+        return CellConfiguratorMenu.canEditPower(this.menu.getCellInSlot());
+    }
+
+    private List<String> powerEntries(ItemStack cell) {
+        if (!CellConfiguratorMenu.canEditPower(cell)) return List.of("", "", "");
+        return List.of(
+                Long.toString(PortableCellPower.getMaxPower(cell)),
+                Long.toString(PortableCellPower.getCostPerItem(cell)),
+                Double.toString(PortableCellPower.getConfiguredChargeRate(cell))
+        );
     }
 
     @Override
@@ -207,7 +422,11 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
         ItemStack currentCell = this.menu.getCellInSlot();
 
         if (!ItemStack.matches(currentCell, this.lastCellItem)) {
+            net.minecraft.world.item.Item oldItem = this.lastCellItem.getItem();
+            boolean cellItemChanged = currentCell.getItem() != oldItem;
             this.lastCellItem = currentCell.copy();
+            // 元件配置变化后旧的解析结果不再可靠，清空缓存。
+            clearItemStackCache();
 
             if (!currentCell.isEmpty()) {
                 List<String> itemEntries = new ArrayList<>();
@@ -216,14 +435,17 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
                 List<String> blacklistEntries = new ArrayList<>();
                 String nameValue = "";
 
-                if (currentCell.getItem() instanceof InfinityItemCell) {
+                if (currentCell.getItem() instanceof IInfinityCell cell
+                        && cell.getCellType() == IInfinityCell.CellType.ITEM) {
                     itemEntries = new ArrayList<>(InfinityItemCell.getIdentifiers(currentCell));
                 }
-                if (currentCell.getItem() instanceof InfinityTagCell) {
+                if (currentCell.getItem() instanceof IInfinityCell cell
+                        && cell.getCellType() == IInfinityCell.CellType.TAG) {
                     tagEntries = new ArrayList<>(InfinityTagCell.getTagNames(currentCell));
                     modIdEntries = new ArrayList<>(InfinityTagCell.getModIds(currentCell));
                 }
-                if (currentCell.getItem() instanceof InfinityModIdCell) {
+                if (currentCell.getItem() instanceof IInfinityCell cell
+                        && cell.getCellType() == IInfinityCell.CellType.MODID) {
                     modIdEntries = new ArrayList<>(InfinityModIdCell.getModIds(currentCell));
                 }
                 blacklistEntries = new ArrayList<>(Cell4Util.getBlacklistIds(currentCell));
@@ -244,6 +466,32 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
                 snapshotModIds = new ArrayList<>(modIdEntries);
                 snapshotBlacklist = new ArrayList<>(blacklistEntries);
                 snapshotName = nameValue;
+                applyTextureFieldValue(currentCell);
+                if (cellItemChanged) workbenchPage = 0;
+
+                if (CellConfiguratorMenu.canEditPower(currentCell)) {
+                    List<String> power = powerEntries(currentCell);
+                    groups.get(GROUP_POWER).setEntries(power);
+                    groups.get(GROUP_POWER).collapsed = false;
+                    snapshotPower = new ArrayList<>(power);
+                } else {
+                    groups.get(GROUP_POWER).clearEntries();
+                    groups.get(GROUP_POWER).collapsed = true;
+                    snapshotPower = new ArrayList<>();
+                }
+
+                if (uiMode == UI_MODE_WORKBENCH) {
+                    if (canUseWorkbench(currentCell)) {
+                        if (cellItemChanged) populateGridFromEntries(itemEntries);
+                    } else {
+                        // 元件被换掉/取出：立刻回到列表 UI 并重建界面，避免残留工作台状态
+                        uiMode = UI_MODE_LIST;
+                        applyScreenMetrics();
+                        this.rebuildWidgets();
+                        scrollOffset = 0;
+                        return;
+                    }
+                }
 
                 scrollOffset = 0;
             } else {
@@ -253,6 +501,20 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
                 }
                 this.nameField.setValue("");
                 this.nameField.setEditable(false);
+                if (this.textureField != null) {
+                    this.textureField.setValue("");
+                    this.textureField.setEditable(false);
+                }
+                gridItems.clear();
+                gridOtherItems.clear();
+                snapshotPower = new ArrayList<>();
+                boolean wasWorkbench = uiMode == UI_MODE_WORKBENCH;
+                uiMode = UI_MODE_LIST;
+                applyScreenMetrics();
+                if (wasWorkbench) {
+                    this.rebuildWidgets();
+                    return;
+                }
                 scrollOffset = 0;
             }
             updateFieldPositions();
@@ -267,15 +529,34 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
     }
 
     private void updateFieldPositions() {
+        if (uiMode == UI_MODE_WORKBENCH) {
+            for (EntryGroup group : groups) {
+                for (EditBox field : group.entryFields) {
+                    field.visible = false;
+                }
+            }
+            return;
+        }
         int baseY = topPos + CONTENT_Y - scrollOffset;
         int currentY = baseY;
 
         for (EntryGroup group : groups) {
+            if (group.groupId == GROUP_POWER && !isPortableCell()) {
+                for (EditBox field : group.entryFields) {
+                    field.visible = false;
+                }
+                continue;
+            }
             if (!group.collapsed) {
                 for (int i = 0; i < group.entryFields.size(); i++) {
                     EditBox field = group.entryFields.get(i);
                     int fieldY = currentY + GROUP_HEADER_H + i * ENTRY_H + 1;
                     field.setY(fieldY);
+                    if (group.groupId == GROUP_POWER) {
+                        field.setX(leftPos + SIDEBAR_W + CONTENT_X + 48);
+                        field.setWidth(CONTENT_W - 48 - SCROLLBAR_W - 4);
+                        field.setMaxLength(20);
+                    }
                     field.setEditable(group.isEditable());
                     field.visible = isRowVisible(fieldY - topPos, ENTRY_H);
                 }
@@ -297,6 +578,7 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
     private int calcTotalContentHeight() {
         int total = 0;
         for (EntryGroup group : groups) {
+            if (group.groupId == GROUP_POWER && !isPortableCell()) continue;
             total += group.getTotalHeight() + GROUP_GAP;
         }
         return total;
@@ -304,25 +586,101 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
 
     @Override
     protected void renderBg(GuiGraphics guiGraphics, float partialTick, int mouseX, int mouseY) {
-        // Draw main background - blit with explicit texture dimensions for 320x280 texture
-        // Minecraft's default blit assumes 256x256 textures, so we must specify actual size
-        guiGraphics.blit(GUI_TEXTURE, this.leftPos, this.topPos, 0, 0, this.imageWidth, this.imageHeight, 320, 280);
+        int mainX = this.leftPos + SIDEBAR_W;
+        int sbX = this.leftPos;
 
-        guiGraphics.fill(this.leftPos + CONTENT_X - 2, this.topPos + CONTENT_Y - 2,
-                this.leftPos + CONTENT_X + CONTENT_W + 2, this.topPos + CONTENT_Y + VIEWPORT_H + 2,
+        // 左侧扩展栏（两种 UI 共用）
+        guiGraphics.fill(sbX, this.topPos, sbX + SIDEBAR_W, this.topPos + this.imageHeight, 0xFF3C5078);
+        guiGraphics.fill(sbX + 1, this.topPos + 1, sbX + SIDEBAR_W - 1,
+                this.topPos + this.imageHeight - 1, 0xFFAFCAE6);
+
+        if (uiMode == UI_MODE_WORKBENCH) {
+            // 直接使用 AE2 原版元件工作台背景
+            guiGraphics.blit(AE2_CELLWORKBENCH, mainX, this.topPos, 0, 0, PANEL_W, PANEL_H, 256, 256);
+            // 右侧控制栏底色
+            int sideX = mainX + PANEL_W;
+            guiGraphics.fill(sideX, this.topPos, sideX + WORKBENCH_SIDE_W, this.topPos + PANEL_H, 0xFFC6C6C6);
+            guiGraphics.fill(sideX, this.topPos, sideX + 1, this.topPos + PANEL_H, 0xFF8B8B8B);
+            drawInputBorder(guiGraphics, sideX + 5, this.topPos + 40, 78, 14);
+            renderSidebarButtons(guiGraphics, mouseX, mouseY);
+            return;
+        }
+
+        guiGraphics.blit(GUI_TEXTURE, mainX, this.topPos, 0, 0, MAIN_W, this.imageHeight, 320, 280);
+
+        guiGraphics.fill(mainX + CONTENT_X - 2, this.topPos + CONTENT_Y - 2,
+                mainX + CONTENT_X + CONTENT_W + 2, this.topPos + CONTENT_Y + VIEWPORT_H + 2,
                 0x20000000);
 
         // Name field white border and background (must be drawn BEFORE EditBox renders its text)
-        int nfX = this.leftPos + 40;
-        int nfY = this.topPos + 28;
-        int nfW = 170;
-        int nfH = 14;
-        guiGraphics.fill(nfX, nfY, nfX + nfW, nfY + 1, 0xFFFFFFFF); // top
-        guiGraphics.fill(nfX, nfY + nfH - 1, nfX + nfW, nfY + nfH, 0xFFFFFFFF); // bottom
-        guiGraphics.fill(nfX, nfY, nfX + 1, nfY + nfH, 0xFFFFFFFF); // left
-        guiGraphics.fill(nfX + nfW - 1, nfY, nfX + nfW, nfY + nfH, 0xFFFFFFFF); // right
-        // Inner dark fill behind text
-        guiGraphics.fill(nfX + 1, nfY + 1, nfX + nfW - 1, nfY + nfH - 1, 0x80000000);
+        drawInputBorder(guiGraphics, mainX + 40, this.topPos + 28, 100, 14);
+        // Texture field border
+        drawInputBorder(guiGraphics, mainX + 141, this.topPos + 28, 74, 14);
+
+        renderSidebarButtons(guiGraphics, mouseX, mouseY);
+    }
+
+    private void drawInputBorder(GuiGraphics guiGraphics, int x, int y, int w, int h) {
+        guiGraphics.fill(x, y, x + w, y + 1, 0xFFFFFFFF);
+        guiGraphics.fill(x, y + h - 1, x + w, y + h, 0xFFFFFFFF);
+        guiGraphics.fill(x, y, x + 1, y + h, 0xFFFFFFFF);
+        guiGraphics.fill(x + w - 1, y, x + w, y + h, 0xFFFFFFFF);
+        guiGraphics.fill(x + 1, y + 1, x + w - 1, y + h - 1, 0x80000000);
+    }
+
+    /**
+     * 左侧扩展栏：顶部一个方形切换按钮，工作台模式下再显示保存/重置/清空三个小按钮，
+     * 底部是帮助按钮。
+     */
+    private void renderSidebarButtons(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+        int sbX = this.leftPos;
+        boolean itemCell = canUseWorkbench();
+
+        // 切换按钮（14x14，不做滑块外观）
+        int tabX = sbX + 2;
+        int tabY = this.topPos + 26;
+        boolean hovered = isHoveringToggle(mouseX, mouseY);
+        int border = itemCell ? 0xFF2A3E5C : 0xFF7D8FA6;
+        int bg = itemCell ? (hovered ? 0xFFF2F8FF : 0xFFDCEAFA) : 0xFFB9C7D8;
+        drawSidebarButton(guiGraphics, tabX, tabY, bg, border);
+        int icon = itemCell ? 0xFF2A3E5C : 0xFF8899AA;
+        if (uiMode == UI_MODE_LIST) {
+            for (int i = 0; i < 3; i++) {
+                int ly = tabY + 4 + i * 3;
+                guiGraphics.fill(tabX + 4, ly, tabX + 10, ly + 1, icon);
+            }
+        } else {
+            guiGraphics.fill(tabX + 4, tabY + 4, tabX + 7, tabY + 7, icon);
+            guiGraphics.fill(tabX + 8, tabY + 4, tabX + 11, tabY + 7, icon);
+            guiGraphics.fill(tabX + 4, tabY + 8, tabX + 7, tabY + 11, icon);
+            guiGraphics.fill(tabX + 8, tabY + 8, tabX + 11, tabY + 11, icon);
+        }
+
+        // 工作台模式下，把保存/重置/清空放到侧栏
+        if (uiMode == UI_MODE_WORKBENCH) {
+            drawSmallActionButton(guiGraphics, 1, "R", 0xFF2A3E5C, mouseX, mouseY);
+            drawSmallActionButton(guiGraphics, 2, "C", 0xFF6E2A2A, mouseX, mouseY);
+        }
+
+        // 底部帮助按钮
+        int helpX = sbX + 3;
+        int helpY = this.topPos + this.imageHeight - 14;
+        guiGraphics.drawString(this.font, "?", helpX, helpY,
+                isHoveringHelp(mouseX, mouseY) ? 0xFF2A3E5C : 0xFF5A6E88, true);
+    }
+
+    private void drawSidebarButton(GuiGraphics guiGraphics, int x, int y, int fill, int border) {
+        guiGraphics.fill(x, y, x + 14, y + 14, border);
+        guiGraphics.fill(x + 1, y + 1, x + 13, y + 13, fill);
+    }
+
+    private void drawSmallActionButton(GuiGraphics guiGraphics, int index, String glyph, int color,
+                                       int mouseX, int mouseY) {
+        int bx = this.leftPos + 2;
+        int by = this.topPos + 48 + index * 18;
+        boolean hovered = mouseX >= bx && mouseX <= bx + 14 && mouseY >= by && mouseY <= by + 14;
+        drawSidebarButton(guiGraphics, bx, by, hovered ? 0xFFF2F8FF : 0xFFDCEAFA, 0xFF2A3E5C);
+        guiGraphics.drawCenteredString(this.font, glyph, bx + 7, by + 3, color);
     }
 
     @Override
@@ -334,75 +692,84 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
         this.renderBackground(guiGraphics);
         super.render(guiGraphics, mouseX, mouseY, partialTick);
 
-        int x = this.leftPos;
+        int x = this.leftPos + SIDEBAR_W;
         int y = this.topPos;
         ItemStack targetCell = this.menu.getCellInSlot();
 
         // Title
-        guiGraphics.drawString(this.font, this.title, x + 8, y + 6, 0x2A3E5C, false);
+        guiGraphics.drawString(this.font, this.title, x + 8, y + 6,
+                uiMode == UI_MODE_WORKBENCH ? 0x404040 : 0x2A3E5C, false);
 
-        // "?" help button (below Save/Reset/Clear buttons)
-        int helpX = x + this.imageWidth - 16;
-        int helpY = y + 20;
-        int helpColor = isHoveringHelp(mouseX, mouseY) ? 0xFFFFFF : 0x2A3E5C;
-        guiGraphics.drawString(this.font, "?", helpX, helpY, helpColor, true);
         this.helpHovered = isHoveringHelp(mouseX, mouseY);
-
         if (helpHovered) {
             List<Component> helpLines = List.of(
-                Component.translatable("gui.cell4.help_shortcuts"),
+                Component.translatable("gui.cell4.help_title"),
+                Component.translatable("gui.cell4.help_items"),
+                Component.translatable("gui.cell4.help_patterns"),
                 Component.translatable("gui.cell4.help_blacklist"),
-                Component.translatable("gui.cell4.help_prefixes"),
-                Component.translatable("gui.cell4.help_prefixes2")
+                Component.translatable("gui.cell4.help_texture"),
+                Component.translatable("gui.cell4.help_hotkeys")
             );
             guiGraphics.renderTooltip(this.font, helpLines, Optional.empty(), mouseX, mouseY);
         }
 
-        // Name label (next to item slot)
-        guiGraphics.drawString(this.font, Component.translatable("gui.cell4.cell_name"), x + 40, y + 18,
-                !targetCell.isEmpty() && CellConfiguratorMenu.canEditName(targetCell) ? 0x2A3E5C : 0x8899AA, false);
-
-        // Name field border and background are now drawn in renderBg (before EditBox text renders)
-
-        // Buttons
-        int btnX = x + 215;
-        int btnY = y + 6;
-        renderMiniButton(guiGraphics, btnX, btnY, 30, 12, Component.translatable("gui.cell4.save"), 0x2A6E2A, mouseX, mouseY);
-        renderMiniButton(guiGraphics, btnX + 34, btnY, 30, 12, Component.translatable("gui.cell4.reset"), 0x2A3E5C, mouseX, mouseY);
-        renderMiniButton(guiGraphics, btnX + 68, btnY, 30, 12, Component.translatable("gui.cell4.clear"), 0x6E2A2A, mouseX, mouseY);
-
-        // Save result feedback
-        if (saveResultTime > 0 && System.currentTimeMillis() - saveResultTime < SAVE_RESULT_DISPLAY_MS) {
-            int feedbackColor = lastSaveSuccess ? 0x55FF55 : 0xFF5555;
-            guiGraphics.drawString(this.font,
-                Component.translatable(lastSaveMessage),
-                btnX, btnY + 14, feedbackColor, false);
+        if (isHoveringToggle(mouseX, mouseY)) {
+            guiGraphics.renderTooltip(this.font,
+                    Component.translatable("gui.cell4.toggle_ui"), mouseX, mouseY);
         }
 
-        // No cell warning - rendered centered in the content area after scissor is disabled
+        if (uiMode == UI_MODE_WORKBENCH) {
+            // AE2 风格：标题栏已画，直接渲染配置网格与物品栏标题
+            renderWorkbenchContent(guiGraphics, mouseX, mouseY);
+            guiGraphics.drawString(this.font, Component.translatable("container.inventory"),
+                    x + 8, y + this.imageHeight - 93, 0x404040, false);
+        } else {
+            // Name label (next to item slot)
+            guiGraphics.drawString(this.font, Component.translatable("gui.cell4.cell_name"), x + 40, y + 18,
+                    !targetCell.isEmpty() && CellConfiguratorMenu.canEditName(targetCell) ? 0x2A3E5C : 0x8899AA, false);
+            guiGraphics.drawString(this.font, Component.translatable("gui.cell4.cell_texture"), x + 141, y + 18,
+                    targetCell.isEmpty() ? 0x8899AA : 0x2A3E5C, false);
 
-        // Render scrollable content
-        enableScissorForContent(guiGraphics);
-        renderContent(guiGraphics, mouseX, mouseY);
-        disableScissor(guiGraphics);
+            // Buttons
+            int btnX = x + 215;
+            int btnY = y + 6;
+            renderMiniButton(guiGraphics, btnX - 34, btnY, 30, 12,
+                    Component.translatable("gui.cell4.open_folder"), 0x2A3E5C, mouseX, mouseY);
+            renderMiniButton(guiGraphics, btnX, btnY, 30, 12, Component.translatable("gui.cell4.save"), 0x2A6E2A, mouseX, mouseY);
+            renderMiniButton(guiGraphics, btnX + 34, btnY, 30, 12, Component.translatable("gui.cell4.reset"), 0x2A3E5C, mouseX, mouseY);
+            renderMiniButton(guiGraphics, btnX + 68, btnY, 30, 12, Component.translatable("gui.cell4.clear"), 0x6E2A2A, mouseX, mouseY);
 
-        // No cell warning - centered horizontally at top of content area
-        if (targetCell.isEmpty()) {
-            int warningWidth = this.font.width(Component.translatable("gui.cell4.no_cell"));
-            int warningCenterX = x + CONTENT_X + (CONTENT_W - warningWidth) / 2;
-            int warningTopY = y + CONTENT_Y + 4;
-            guiGraphics.drawString(this.font,
-                Component.translatable("gui.cell4.no_cell"),
-                warningCenterX, warningTopY, 0xFF5555, false);
+            // Save result feedback
+            if (saveResultTime > 0 && System.currentTimeMillis() - saveResultTime < SAVE_RESULT_DISPLAY_MS) {
+                int feedbackColor = lastSaveSuccess ? 0x55FF55 : 0xFF5555;
+                guiGraphics.drawString(this.font,
+                    Component.translatable(lastSaveMessage),
+                    btnX, btnY + 14, feedbackColor, false);
+            }
+
+            // Render scrollable content
+            enableScissorForContent(guiGraphics);
+            renderContent(guiGraphics, mouseX, mouseY);
+            disableScissor(guiGraphics);
+
+            // No cell warning - centered horizontally at top of content area
+            if (targetCell.isEmpty()) {
+                int warningWidth = this.font.width(Component.translatable("gui.cell4.no_cell"));
+                int warningCenterX = x + CONTENT_X + (CONTENT_W - warningWidth) / 2;
+                int warningTopY = y + CONTENT_Y + 4;
+                guiGraphics.drawString(this.font,
+                    Component.translatable("gui.cell4.no_cell"),
+                    warningCenterX, warningTopY, 0xFF5555, false);
+            }
+
+            // Render scrollbar
+            renderScrollbar(guiGraphics);
         }
-
-        // Render scrollbar
-        renderScrollbar(guiGraphics);
 
         // === Tooltip Preview Panel (right side of GUI) ===
         ItemStack previewCell = this.menu.getCellInSlot();
         if (!previewCell.isEmpty()) {
-            int previewX = x + this.imageWidth + 6;
+            int previewX = this.leftPos + this.imageWidth + 6;
             int previewY = y + 18;
 
             // Small label above the preview tooltip
@@ -433,6 +800,73 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
         this.renderTooltip(guiGraphics, mouseX, mouseY);
     }
 
+    /** 拖放目标：UI1 的条目组（groupId >= 0）或 UI2 的网格槽（gridIndex >= 0）。 */
+    public record DropZone(Rect2i bounds, int groupId, int gridIndex) {}
+
+    /** 当前 UI 的拖放区域（屏幕坐标），供 JEI/REI/EMI 与原版拖拽使用。 */
+    public List<DropZone> getDropZones() {
+        List<DropZone> zones = new ArrayList<>();
+        int x = this.leftPos + SIDEBAR_W;
+        if (uiMode == UI_MODE_WORKBENCH) {
+            int gx = getWorkbenchGridX();
+            int gy = getWorkbenchGridY();
+            for (int i = 0; i < GRID_LIMIT; i++) {
+                int col = i % GRID_COLS;
+                int row = i / GRID_COLS;
+                zones.add(new DropZone(new Rect2i(gx + col * GRID_CELL, gy + row * GRID_CELL,
+                        GRID_CELL, GRID_CELL), -1, i));
+            }
+        } else {
+            int viewTop = this.topPos + CONTENT_Y;
+            int viewBottom = viewTop + VIEWPORT_H;
+            int currentY = viewTop - scrollOffset;
+            for (EntryGroup group : groups) {
+                int fullH = group.getTotalHeight();
+                if ((group.groupId == GROUP_ITEMS || group.groupId == GROUP_BLACKLIST)
+                        && currentY + fullH > viewTop && currentY < viewBottom) {
+                    zones.add(new DropZone(new Rect2i(x + CONTENT_X, currentY, CONTENT_W, GROUP_HEADER_H),
+                            group.groupId, -1));
+                }
+                currentY += fullH + GROUP_GAP;
+            }
+        }
+        return zones;
+    }
+
+    /** 接受一个绑定条目（裸 ID 或 {@code id{SNBT}}，来自原版拖拽或 JEI/REI/EMI 拖拽）。 */
+    public void acceptDrop(String itemId, double mouseX, double mouseY) {
+        if (itemId == null || itemId.isEmpty()) return;
+        for (DropZone zone : getDropZones()) {
+            if (!zone.bounds().contains((int) mouseX, (int) mouseY)) continue;
+            if (zone.gridIndex() >= 0) {
+                int absolute = pageOffset() + zone.gridIndex();
+                if (absolute < gridItems.size()) {
+                    gridItems.set(absolute, itemId);
+                } else if (!gridItems.contains(itemId)) {
+                    gridItems.add(itemId);
+                }
+                onSave();
+            } else if (zone.groupId() >= 0) {
+                EntryGroup group = groups.get(zone.groupId());
+                if (group.isEditable() && itemStackFromId(itemId) != null) {
+                    group.addEntry(itemId);
+                    updateFieldPositions();
+                }
+            }
+            return;
+        }
+    }
+
+    private boolean tryAcceptDropAt(String itemId, double mouseX, double mouseY) {
+        for (DropZone zone : getDropZones()) {
+            if (zone.bounds().contains((int) mouseX, (int) mouseY)) {
+                acceptDrop(itemId, mouseX, mouseY);
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * Build a clone of the current cell ItemStack with the in-editor (unsaved) values
      * applied to its NBT. Used for the live preview tooltip so the user sees their
@@ -441,17 +875,20 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
     private ItemStack buildLivePreviewStack(ItemStack source) {
         ItemStack copy = source.copy();
 
-        List<String> items = collectNonEmpty(GROUP_ITEMS);
+        List<String> items = currentItemEntries();
         List<String> tags = collectNonEmpty(GROUP_TAGS);
         List<String> modIds = collectNonEmpty(GROUP_MODIDS);
         List<String> blacklist = collectNonEmpty(GROUP_BLACKLIST);
 
-        if (copy.getItem() instanceof InfinityItemCell) {
+        if (copy.getItem() instanceof IInfinityCell cell
+                && cell.getCellType() == IInfinityCell.CellType.ITEM) {
             InfinityItemCell.setIdentifiers(copy, items);
-        } else if (copy.getItem() instanceof InfinityTagCell) {
+        } else if (copy.getItem() instanceof IInfinityCell cell
+                && cell.getCellType() == IInfinityCell.CellType.TAG) {
             InfinityTagCell.setTagNames(copy, tags);
             InfinityTagCell.setModIds(copy, modIds);
-        } else if (copy.getItem() instanceof InfinityModIdCell) {
+        } else if (copy.getItem() instanceof IInfinityCell cell
+                && cell.getCellType() == IInfinityCell.CellType.MODID) {
             InfinityModIdCell.setModIds(copy, modIds);
         }
 
@@ -460,6 +897,15 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
         String pendingName = this.nameField.getValue();
         if (copy.getItem() instanceof IInfinityCell cell) {
             cell.setCustomName(copy, pendingName);
+            if (this.textureField != null) {
+                cell.setTextureName(copy, this.textureField.getValue());
+            }
+            if (cell.isPortable()) {
+                List<String> power = collectNonEmpty(GROUP_POWER);
+                if (power.size() >= 3) {
+                    PortableCellPower.setOverrides(copy, power.get(0), power.get(1), power.get(2));
+                }
+            }
         }
 
         return copy;
@@ -468,10 +914,50 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
     private List<String> collectNonEmpty(int groupId) {
         EntryGroup group = groups.get(groupId);
         List<String> result = new ArrayList<>();
-        for (String val : group.entries) {
+        for (int i = 0; i < group.entries.size(); i++) {
+            String val = i < group.entryFields.size()
+                    ? group.entryFields.get(i).getValue()
+                    : group.entries.get(i);
             if (val != null && !val.isEmpty()) result.add(val);
         }
         return result;
+    }
+
+    /**
+     * 预览面板在屏幕上的区域（供 JEI / REI / EMI 等物品面板避让），
+     * 无可预览的元件时返回 null。
+     */
+    public Rect2i getPreviewBounds() {
+        if (this.minecraft == null) return null;
+        ItemStack cell = this.menu.getCellInSlot();
+        if (cell.isEmpty()) return null;
+
+        ItemStack livePreview = buildLivePreviewStack(cell);
+        TooltipFlag flag = this.minecraft.options.advancedItemTooltips ? TooltipFlag.ADVANCED : TooltipFlag.NORMAL;
+        List<Component> tooltipLines = new ArrayList<>(livePreview.getTooltipLines(this.minecraft.player, flag));
+        int previewCap = 6;
+        int totalCount = getPreviewContentCount(livePreview);
+        if (totalCount > previewCap) {
+            tooltipLines.add(Component.translatable("gui.cell4.preview_more", totalCount - previewCap));
+        }
+
+        int maxWidth = 0;
+        for (Component line : tooltipLines) {
+            maxWidth = Math.max(maxWidth, this.font.width(line));
+        }
+        int width = Math.max(120, maxWidth + 8);
+        // 预览标签占 10px，tooltip 每行 10px，上下留 8px
+        int height = 10 + tooltipLines.size() * 10 + 8;
+        return new Rect2i(this.leftPos + this.imageWidth + 6, this.topPos + 4, width, height);
+    }
+
+    private List<String> currentItemEntries() {
+        if (uiMode == UI_MODE_WORKBENCH) {
+            List<String> merged = new ArrayList<>(gridItems);
+            merged.addAll(gridOtherItems);
+            return merged;
+        }
+        return collectNonEmpty(GROUP_ITEMS);
     }
 
     /**
@@ -480,12 +966,12 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
      * (the tooltip image component may be capped to 18).
      */
     private int getPreviewContentCount(ItemStack livePreview) {
-        if (livePreview.getItem() instanceof InfinityItemCell) {
-            return InfinityItemCell.getPreviewTotalCount(livePreview);
-        } else if (livePreview.getItem() instanceof InfinityTagCell) {
-            return InfinityTagCell.getPreviewTotalCount(livePreview);
-        } else if (livePreview.getItem() instanceof InfinityModIdCell) {
-            return InfinityModIdCell.getPreviewTotalCount(livePreview);
+        if (livePreview.getItem() instanceof IInfinityCell cell) {
+            return switch (cell.getCellType()) {
+                case ITEM -> InfinityItemCell.getPreviewTotalCount(livePreview);
+                case TAG -> InfinityTagCell.getPreviewTotalCount(livePreview);
+                case MODID -> InfinityModIdCell.getPreviewTotalCount(livePreview);
+            };
         }
         return 0;
     }
@@ -565,7 +1051,7 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
     }
 
     private void enableScissorForContent(GuiGraphics guiGraphics) {
-        int scissorX = this.leftPos + CONTENT_X - 2;
+        int scissorX = this.leftPos + SIDEBAR_W + CONTENT_X - 2;
         int scissorY = this.topPos + CONTENT_Y - 2;
         int scissorW = CONTENT_W + 4;
         int scissorH = VIEWPORT_H + 4;
@@ -577,11 +1063,19 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
     }
 
     private void renderContent(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-        int x = this.leftPos;
+        if (uiMode == UI_MODE_WORKBENCH) {
+            renderWorkbenchContent(guiGraphics, mouseX, mouseY);
+            return;
+        }
+        int x = this.leftPos + SIDEBAR_W;
         int baseY = this.topPos + CONTENT_Y - scrollOffset;
         int currentY = baseY;
 
         for (EntryGroup group : groups) {
+            boolean isPower = group.groupId == GROUP_POWER;
+            if (isPower && !isPortableCell()) {
+                continue;
+            }
             int screenY = currentY - this.topPos;
             boolean headerVisible = isRowVisible(screenY, GROUP_HEADER_H);
 
@@ -595,16 +1089,18 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
                 guiGraphics.drawString(this.font, Component.translatable(group.labelKey),
                     x + CONTENT_X + 14, currentY + 3, arrowColor, true);
 
-                // "+" button
-                int plusX = x + CONTENT_X + CONTENT_W - SCROLLBAR_W - 14;
-                boolean plusHovered = isHoveringPlus(mouseX, mouseY, plusX, currentY);
-                int plusColor = plusHovered ? 0xFFFF55 : (group.isEditable() ? 0x55FF55 : 0x8899AA);
-                guiGraphics.drawString(this.font, "+", plusX, currentY + 3, plusColor, true);
+                if (!isPower) {
+                    // "+" button
+                    int plusX = x + CONTENT_X + CONTENT_W - SCROLLBAR_W - 14;
+                    boolean plusHovered = isHoveringPlus(mouseX, mouseY, plusX, currentY);
+                    int plusColor = plusHovered ? 0xFFFF55 : (group.isEditable() ? 0x55FF55 : 0x8899AA);
+                    guiGraphics.drawString(this.font, "+", plusX, currentY + 3, plusColor, true);
 
-                if (!group.entries.isEmpty()) {
-                    String count = "(" + group.entries.size() + ")";
-                    guiGraphics.drawString(this.font, count, x + CONTENT_X + 14 + this.font.width(Component.translatable(group.labelKey)) + 4,
-                        currentY + 3, 0x8899AA, false);
+                    if (!group.entries.isEmpty()) {
+                        String count = "(" + group.entries.size() + ")";
+                        guiGraphics.drawString(this.font, count, x + CONTENT_X + 14 + this.font.width(Component.translatable(group.labelKey)) + 4,
+                            currentY + 3, 0x8899AA, false);
+                    }
                 }
             }
 
@@ -617,13 +1113,23 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
                         guiGraphics.fill(x + CONTENT_X, entryY, x + CONTENT_X + CONTENT_W, entryY + ENTRY_H,
                             i % 2 == 0 ? 0x10000000 : 0x18000000);
 
-                        String seqNum = (i + 1) + ".";
-                        guiGraphics.drawString(this.font, seqNum, x + CONTENT_X + 4, entryY + 3, 0x000000, true);
+                        if (isPower) {
+                            String label = switch (i) {
+                                case 0 -> Component.translatable("gui.cell4.power_max").getString();
+                                case 1 -> Component.translatable("gui.cell4.power_cost").getString();
+                                default -> Component.translatable("gui.cell4.power_charge").getString();
+                            };
+                            guiGraphics.drawString(this.font, label, x + CONTENT_X + 4, entryY + 3,
+                                    group.isEditable() ? 0xFFFFFF : 0x8899AA, true);
+                        } else {
+                            String seqNum = (i + 1) + ".";
+                            guiGraphics.drawString(this.font, seqNum, x + CONTENT_X + 4, entryY + 3, 0x000000, true);
 
-                        int xBtnX = x + CONTENT_X + CONTENT_W - SCROLLBAR_W - 12;
-                        boolean xHovered = isHoveringX(mouseX, mouseY, xBtnX, entryY);
-                        int xColor = xHovered ? 0xFF5555 : 0x995555;
-                        guiGraphics.drawString(this.font, "x", xBtnX, entryY + 3, xColor, true);
+                            int xBtnX = x + CONTENT_X + CONTENT_W - SCROLLBAR_W - 12;
+                            boolean xHovered = isHoveringX(mouseX, mouseY, xBtnX, entryY);
+                            int xColor = xHovered ? 0xFF5555 : 0x995555;
+                            guiGraphics.drawString(this.font, "x", xBtnX, entryY + 3, xColor, true);
+                        }
                     }
                 }
             }
@@ -636,11 +1142,253 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
         if (scrollOffset > maxScroll) scrollOffset = maxScroll;
     }
 
+    // === Workbench-style second UI ===
+
+    private boolean canUseWorkbench() {
+        return canUseWorkbench(this.menu.getCellInSlot());
+    }
+
+    private static boolean canUseWorkbench(ItemStack stack) {
+        return !stack.isEmpty() && stack.getItem() instanceof IInfinityCell cell
+                && cell.getCellType() == IInfinityCell.CellType.ITEM;
+    }
+
+    private void toggleUiMode() {
+        if (uiMode == UI_MODE_LIST) {
+            if (!canUseWorkbench()) return;
+            syncEntriesFromFields();
+            populateGridFromEntries(groups.get(GROUP_ITEMS).entries);
+            uiMode = UI_MODE_WORKBENCH;
+        } else {
+            groups.get(GROUP_ITEMS).setEntries(mergedGridItems());
+            uiMode = UI_MODE_LIST;
+            scrollOffset = 0;
+        }
+        // 重新 init()：按新 UI 重新计算窗口尺寸与槽位坐标
+        this.rebuildWidgets();
+    }
+
+    private List<String> mergedGridItems() {
+        List<String> merged = new ArrayList<>(gridItems);
+        merged.addAll(gridOtherItems);
+        return merged;
+    }
+
+    private void populateGridFromEntries(List<String> items) {
+        gridItems.clear();
+        gridOtherItems.clear();
+        for (String entry : items) {
+            if (entry == null || entry.isEmpty()) continue;
+            if (itemStackFromId(entry) != null) {
+                if (!gridItems.contains(entry)) {
+                    gridItems.add(entry);
+                }
+            } else {
+                gridOtherItems.add(entry);
+            }
+        }
+    }
+
+    private void commitGridToGroup() {
+        groups.get(GROUP_ITEMS).setEntries(mergedGridItems());
+    }
+
+    /** 已绑定条目去重后的数量（用于界面上显示，避免重复条目导致计数虚高）。 */
+    private int uniqueGridCount() {
+        return new java.util.LinkedHashSet<>(gridItems).size();
+    }
+
+    private static ItemStack itemStackFromId(String id) {
+        if (id == null || id.isEmpty()) return null;
+        // Shared with Cell4Util.parseIdentifier so preview rendering and storage parsing agree.
+        // 结果按条目缓存（上限 256），未解析成功的条目以 EMPTY 占位，避免每帧重复解析。
+        synchronized (STACK_CACHE) {
+            ItemStack cached = STACK_CACHE.get(id);
+            if (cached != null) {
+                return cached.isEmpty() ? null : cached;
+            }
+        }
+        ItemStack parsed = Cell4Util.parseItemStackEntry(id);
+        synchronized (STACK_CACHE) {
+            STACK_CACHE.put(id, parsed == null ? ItemStack.EMPTY : parsed);
+        }
+        return parsed;
+    }
+
+    /** 元件配置变化后清空解析缓存。 */
+    private static void clearItemStackCache() {
+        synchronized (STACK_CACHE) {
+            STACK_CACHE.clear();
+        }
+    }
+
+    /**
+     * 把物品转换为可保存的绑定条目：注册名，若带有 NBT 则追加完整 SNBT（{@code { ... }}）。
+     * 与 {@link Cell4Util#parseItemStackEntry(String)} 互为逆操作，避免绑定 AE 便携元件等
+     * 带内部数据的物品时丢失 NBT。
+     */
+    public static String itemEntryFromStack(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return null;
+        ResourceLocation id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem());
+        if (id == null) return null;
+        net.minecraft.nbt.CompoundTag tag = stack.getTag();
+        if (tag != null && !tag.isEmpty()) {
+            return id + tag.toString();
+        }
+        return id.toString();
+    }
+
+    private int getWorkbenchGridX() {
+        return this.leftPos + SIDEBAR_W + PANEL_GRID_X;
+    }
+
+    private int getWorkbenchGridY() {
+        return this.topPos + PANEL_GRID_Y;
+    }
+
+    private int getGridIndex(int mouseX, int mouseY) {
+        int gx = getWorkbenchGridX();
+        int gy = getWorkbenchGridY();
+        if (mouseX < gx || mouseX >= gx + GRID_COLS * GRID_CELL) return -1;
+        if (mouseY < gy || mouseY >= gy + GRID_ROWS * GRID_CELL) return -1;
+        int col = (mouseX - gx) / GRID_CELL;
+        int row = (mouseY - gy) / GRID_CELL;
+        return row * GRID_COLS + col;
+    }
+
+    private int getSideX() {
+        return this.leftPos + SIDEBAR_W + PANEL_W;
+    }
+
+    private int realPageCount() {
+        return Math.max(1, (gridItems.size() + GRID_LIMIT - 1) / GRID_LIMIT);
+    }
+
+    /** 显示用页数：允许当前停留在刚新建的空页。 */
+    private int pageCount() {
+        return Math.max(realPageCount(), workbenchPage + 1);
+    }
+
+    private int pageOffset() {
+        return workbenchPage * GRID_LIMIT;
+    }
+
+    private boolean handleWorkbenchClick(int mouseX, int mouseY, int button) {
+        int sideX = getSideX();
+        int py = this.topPos;
+        // 翻页按钮
+        if (mouseY >= py + 102 && mouseY < py + 114) {
+            if (mouseX >= sideX + 5 && mouseX < sideX + 25) {
+                if (workbenchPage > 0) workbenchPage--;
+                return true;
+            }
+            if (mouseX >= sideX + 55 && mouseX < sideX + 75) {
+                // 随时可以进入下一页（空白页也允许）。
+                workbenchPage++;
+                return true;
+            }
+        }
+        int index = getGridIndex(mouseX, mouseY);
+        if (index < 0) return false;
+        int absolute = pageOffset() + index;
+        ItemStack carried = this.menu.getCarried();
+        if (carried.isEmpty()) {
+            if (absolute < gridItems.size()) {
+                gridItems.remove(absolute);
+                if (workbenchPage >= realPageCount()) workbenchPage = realPageCount() - 1;
+            }
+        } else {
+            // 保留物品的完整 NBT，AE 便携元件等带内部数据的物品才能被正确绑定与显示。
+            String value = itemEntryFromStack(carried);
+            if (value != null) {
+                if (absolute < gridItems.size()) {
+                    gridItems.set(absolute, value);
+                } else if (!gridItems.contains(value)) {
+                    // 点任意空白格都按顺序追加，不必从第一格开始。
+                    gridItems.add(value);
+                }
+            }
+        }
+        // 绑定/移除后立即保存，无需再点保存按钮。
+        onSave();
+        return true;
+    }
+
+    private void renderWorkbenchContent(GuiGraphics graphics, int mouseX, int mouseY) {
+        int px = this.leftPos + SIDEBAR_W;
+        int py = this.topPos;
+        int gx = getWorkbenchGridX();
+        int gy = getWorkbenchGridY();
+        int offset = pageOffset();
+
+        // AE2 原版槽位底板
+        for (int index = 0; index < GRID_LIMIT; index++) {
+            int col = index % GRID_COLS;
+            int row = index / GRID_COLS;
+            int sx = gx + col * GRID_CELL;
+            int sy = gy + row * GRID_CELL;
+            graphics.blit(AE2_STATES, sx, sy, 192, 192, 18, 18, 256, 256);
+            int absolute = offset + index;
+            if (absolute < gridItems.size()) {
+                ItemStack stack = itemStackFromId(gridItems.get(absolute));
+                if (stack != null) {
+                    graphics.renderItem(stack, sx + 1, sy + 1);
+                }
+            }
+            if (mouseX >= sx && mouseX < sx + GRID_CELL && mouseY >= sy && mouseY < sy + GRID_CELL) {
+                graphics.fill(sx + 1, sy + 1, sx + 17, sy + 2, 0xFFFFFFFF);
+                graphics.fill(sx + 1, sy + 16, sx + 17, sy + 17, 0xFFFFFFFF);
+                graphics.fill(sx + 1, sy + 1, sx + 2, sy + 17, 0xFFFFFFFF);
+                graphics.fill(sx + 16, sy + 1, sx + 17, sy + 17, 0xFFFFFFFF);
+            }
+        }
+
+        // === 右侧控制栏 ===
+        int sideX = getSideX();
+        int cx = sideX + 5;
+        int contentW = WORKBENCH_SIDE_W - 10;
+        graphics.drawString(this.font, Component.translatable("gui.cell4.workbench_controls"),
+                cx, py + 6, 0x404040, false);
+        graphics.drawString(this.font, Component.translatable("gui.cell4.cell_texture"),
+                cx, py + 30, 0x404040, false);
+        // 材质输入框边框由 renderBg 画
+        renderMiniButton(graphics, cx, py + 58, contentW, 12,
+                Component.translatable("gui.cell4.open_folder"), 0x2A3E5C, mouseX, mouseY);
+        renderMiniButton(graphics, cx, py + 72, contentW, 12,
+                Component.translatable("gui.cell4.reset"), 0x2A3E5C, mouseX, mouseY);
+        renderMiniButton(graphics, cx, py + 86, contentW, 12,
+                Component.translatable("gui.cell4.clear"), 0x6E2A2A, mouseX, mouseY);
+
+        // 翻页
+        renderMiniButton(graphics, cx, py + 102, 20, 12, Component.literal("<"), 0x2A3E5C, mouseX, mouseY);
+        renderMiniButton(graphics, cx + 50, py + 102, 20, 12, Component.literal(">"), 0x2A3E5C, mouseX, mouseY);
+        String pageText = (workbenchPage + 1) + "/" + pageCount();
+        graphics.drawCenteredString(this.font, pageText, cx + 35, py + 104, 0x404040);
+        String count = Component.translatable("gui.cell4.workbench_count", uniqueGridCount()).getString();
+        graphics.drawString(this.font, count, cx, py + 118, 0x404040, false);
+
+        // 其他键与提示
+        graphics.drawString(this.font, Component.translatable("gui.cell4.workbench_other",
+                        gridOtherItems.size()), cx, py + 132, 0x404040, false);
+        int shown = 0;
+        for (String entry : gridOtherItems) {
+            if (shown >= 4) break;
+            String text = entry;
+            if (text.length() > 15) text = text.substring(0, 14) + "\u2026";
+            graphics.drawString(this.font, text, cx, py + 144 + shown * 10, 0x556677, false);
+            shown++;
+        }
+        if (gridOtherItems.size() > shown) {
+            graphics.drawString(this.font, "...", cx, py + 144 + shown * 10, 0x8899AA, false);
+        }
+    }
+
     private void renderScrollbar(GuiGraphics guiGraphics) {
+        if (uiMode == UI_MODE_WORKBENCH) return;
         int totalH = calcTotalContentHeight();
         if (totalH <= VIEWPORT_H) return;
 
-        int x = this.leftPos + SCROLLBAR_X_OFFSET;
+        int x = this.leftPos + SIDEBAR_W + SCROLLBAR_X_OFFSET;
         int y = this.topPos + CONTENT_Y;
         int h = VIEWPORT_H;
 
@@ -666,9 +1414,21 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
     }
 
     private boolean isHoveringHelp(int mouseX, int mouseY) {
-        int helpX = this.leftPos + this.imageWidth - 16;
-        int helpY = this.topPos + 20;
+        int helpX = this.leftPos + 3;
+        int helpY = this.topPos + this.imageHeight - 14;
         return mouseX >= helpX && mouseX <= helpX + 8 && mouseY >= helpY && mouseY <= helpY + 10;
+    }
+
+    private boolean isHoveringToggle(int mouseX, int mouseY) {
+        int tabX = this.leftPos + 2;
+        int tabY = this.topPos + 26;
+        return mouseX >= tabX && mouseX <= tabX + 14 && mouseY >= tabY && mouseY <= tabY + 14;
+    }
+
+    private boolean isHoveringSidebarAction(int mouseX, int mouseY, int index) {
+        int bx = this.leftPos + 2;
+        int by = this.topPos + 48 + index * 18;
+        return mouseX >= bx && mouseX <= bx + 14 && mouseY >= by && mouseY <= by + 14;
     }
 
     private boolean isHoveringPlus(int mouseX, int mouseY, int plusX, int plusY) {
@@ -680,7 +1440,7 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
     }
 
     private boolean isHoveringGroupHeader(int mouseX, int mouseY, int headerY) {
-        int hx = this.leftPos + CONTENT_X;
+        int hx = this.leftPos + SIDEBAR_W + CONTENT_X;
         return mouseX >= hx && mouseX <= hx + CONTENT_W && mouseY >= headerY && mouseY <= headerY + GROUP_HEADER_H;
     }
 
@@ -688,7 +1448,8 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
         int baseY = this.topPos + CONTENT_Y - scrollOffset;
         int currentY = baseY;
         for (EntryGroup group : groups) {
-            int plusX = this.leftPos + CONTENT_X + CONTENT_W - SCROLLBAR_W - 14;
+            if (group.groupId == GROUP_POWER) continue;
+            int plusX = this.leftPos + SIDEBAR_W + CONTENT_X + CONTENT_W - SCROLLBAR_W - 14;
             if (isHoveringPlus(mouseX, mouseY, plusX, currentY) && group.isEditable()) {
                 group.addEmptyEntry();
                 updateFieldPositions();
@@ -703,10 +1464,11 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
         int baseY = this.topPos + CONTENT_Y - scrollOffset;
         int currentY = baseY;
         for (EntryGroup group : groups) {
+            if (group.groupId == GROUP_POWER) continue;
             if (!group.collapsed) {
                 for (int i = 0; i < group.entries.size(); i++) {
                     int entryY = currentY + GROUP_HEADER_H + i * ENTRY_H;
-                    int xBtnX = this.leftPos + CONTENT_X + CONTENT_W - SCROLLBAR_W - 12;
+                    int xBtnX = this.leftPos + SIDEBAR_W + CONTENT_X + CONTENT_W - SCROLLBAR_W - 12;
                     if (isHoveringX(mouseX, mouseY, xBtnX, entryY) && group.isEditable()) {
                         group.removeEntry(i);
                         updateFieldPositions();
@@ -733,10 +1495,29 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
     }
 
     private boolean findAndClickSaveResetClear(int mouseX, int mouseY) {
-        int btnX = this.leftPos + 215;
+        if (uiMode == UI_MODE_WORKBENCH) {
+            if (isHoveringSidebarAction(mouseX, mouseY, 1)) { playButtonSound(); onReset(); return true; }
+            if (isHoveringSidebarAction(mouseX, mouseY, 2)) { playButtonSound(); onClear(); return true; }
+            // 右侧控制栏按钮
+            int cx = getSideX() + 5;
+            int cw = WORKBENCH_SIDE_W - 10;
+            int py = this.topPos;
+            if (mouseX >= cx && mouseX <= cx + cw) {
+                if (mouseY >= py + 58 && mouseY <= py + 70) { playButtonSound(); Cell4ClientHooks.openTextureFolder(); return true; }
+                if (mouseY >= py + 72 && mouseY <= py + 84) { playButtonSound(); onReset(); return true; }
+                if (mouseY >= py + 86 && mouseY <= py + 98) { playButtonSound(); onClear(); return true; }
+            }
+            return false;
+        }
+        int btnX = this.leftPos + SIDEBAR_W + 215;
         int btnY = this.topPos + 6;
         int btnW = 30, btnH = 12;
 
+        if (mouseX >= btnX - 34 && mouseX <= btnX - 34 + btnW && mouseY >= btnY && mouseY <= btnY + btnH) {
+            playButtonSound();
+            Cell4ClientHooks.openTextureFolder();
+            return true;
+        }
         if (mouseX >= btnX && mouseX <= btnX + btnW && mouseY >= btnY && mouseY <= btnY + btnH) {
             playButtonSound();
             onSave();
@@ -763,37 +1544,78 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
     }
 
     private void onSave() {
+        // 保存时顺便扫描材质文件夹，确保 F3+T 前材质包已生成。
+        Cell4Config.refresh();
         ItemStack targetCell = this.menu.getCellInSlot();
         if (targetCell.isEmpty()) return;
 
+        if (uiMode == UI_MODE_WORKBENCH) {
+            // 持久化前按顺序去重，避免重复条目被写入 NBT。
+            List<String> dedupedGrid = new ArrayList<>(new LinkedHashSet<>(gridItems));
+            gridItems.clear();
+            gridItems.addAll(dedupedGrid);
+            commitGridToGroup();
+        }
         syncEntriesFromFields();
+        // UI1 保存的条目同样去重，避免重复写入 NBT；仅在确有重复时重建输入框以保持一致。
+        List<String> dedupedItems = new ArrayList<>(new LinkedHashSet<>(groups.get(GROUP_ITEMS).entries));
+        if (dedupedItems.size() != groups.get(GROUP_ITEMS).entries.size()) {
+            groups.get(GROUP_ITEMS).setEntries(dedupedItems);
+        }
         String itemValue = String.join(",", groups.get(GROUP_ITEMS).entries);
         String tagValue = String.join(",", groups.get(GROUP_TAGS).entries);
         String modIdValue = String.join(",", groups.get(GROUP_MODIDS).entries);
         String blacklistValue = String.join(",", groups.get(GROUP_BLACKLIST).entries);
+        List<String> power = groups.get(GROUP_POWER).entries;
+        String powerMax = power.size() > 0 ? power.get(0) : "";
+        String powerCost = power.size() > 1 ? power.get(1) : "";
+        String powerCharge = power.size() > 2 ? power.get(2) : "";
+        // setEntries() 会重建输入框（默认隐藏），保存后重新按模式定位可见性。
+        updateFieldPositions();
 
         // 1.20.1 Forge: use Cell4Network.CHANNEL.sendToServer
         Cell4Network.CHANNEL.sendToServer(new CellConfigSavePacket(
-            itemValue, tagValue, modIdValue, blacklistValue, this.nameField.getValue()
+            itemValue, tagValue, modIdValue, blacklistValue, this.nameField.getValue(),
+            powerMax, powerCost, powerCharge,
+            this.textureField != null ? this.textureField.getValue() : ""
         ));
     }
 
     private void onReset() {
+        if (uiMode == UI_MODE_WORKBENCH) {
+            populateGridFromEntries(snapshotItems);
+            return;
+        }
         groups.get(GROUP_ITEMS).setEntries(new ArrayList<>(snapshotItems));
         groups.get(GROUP_TAGS).setEntries(new ArrayList<>(snapshotTags));
         groups.get(GROUP_MODIDS).setEntries(new ArrayList<>(snapshotModIds));
         groups.get(GROUP_BLACKLIST).setEntries(new ArrayList<>(snapshotBlacklist));
+        if (isPortableCell()) {
+            groups.get(GROUP_POWER).setEntries(new ArrayList<>(snapshotPower));
+            groups.get(GROUP_POWER).collapsed = false;
+        }
         this.nameField.setValue(snapshotName);
+        if (this.textureField != null) this.textureField.setValue(snapshotTexture);
         updateFieldPositions();
     }
 
     private void onClear() {
         ItemStack cell = this.menu.getCellInSlot();
         if (cell.isEmpty()) return;
+        if (uiMode == UI_MODE_WORKBENCH) {
+            gridItems.clear();
+            gridOtherItems.clear();
+            return;
+        }
         for (EntryGroup group : groups) {
+            if (group.groupId == GROUP_POWER) continue;
             if (group.isEditable()) {
                 group.setEntries(new ArrayList<>());
             }
+        }
+        if (isPortableCell()) {
+            groups.get(GROUP_POWER).setEntries(List.of("0", "0", "0"));
+            groups.get(GROUP_POWER).collapsed = false;
         }
         if (CellConfiguratorMenu.canEditName(cell)) {
             this.nameField.setValue("");
@@ -811,20 +1633,39 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        // 光标上已有物品时，点击条目栏/网格直接添加，物品继续留在光标上。
+        if (button == 0 && !this.menu.getCarried().isEmpty()) {
+            ItemStack carried = this.menu.getCarried();
+            String entry = itemEntryFromStack(carried);
+            if (entry != null && tryAcceptDropAt(entry, mouseX, mouseY)) {
+                return true;
+            }
+        }
+        if (isHoveringToggle((int) mouseX, (int) mouseY)) {
+            playButtonSound();
+            if (canUseWorkbench()) toggleUiMode();
+            return true;
+        }
+
         if (findAndClickSaveResetClear((int) mouseX, (int) mouseY)) return true;
 
         int contentTop = this.topPos + CONTENT_Y;
         int contentBottom = contentTop + VIEWPORT_H;
+
+        if (uiMode == UI_MODE_WORKBENCH) {
+            if (handleWorkbenchClick((int) mouseX, (int) mouseY, button)) return true;
+            boolean result = super.mouseClicked(mouseX, mouseY, button);
+            if (this.menu.getCellInSlot().isEmpty()) clearAllFieldFocus();
+            return result;
+        }
+
         if (mouseY >= contentTop && mouseY <= contentBottom) {
-            // Check plus buttons (if clicked, don't toggle group)
             if (findAndClickPlus((int) mouseX, (int) mouseY)) return true;
-            // Check X buttons (if clicked, don't toggle group)
             if (findAndClickX((int) mouseX, (int) mouseY)) return true;
-            // Check group headers
             findAndToggleGroup((int) mouseX, (int) mouseY);
         }
 
-        int sbX = this.leftPos + SCROLLBAR_X_OFFSET;
+        int sbX = this.leftPos + SIDEBAR_W + SCROLLBAR_X_OFFSET;
         if (mouseX >= sbX && mouseX <= sbX + SCROLLBAR_W && mouseY >= contentTop && mouseY <= contentBottom) {
             this.scrolling = true;
             return true;
@@ -860,9 +1701,12 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
     // 1.20.1 Forge: mouseScrolled has different signature
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (uiMode == UI_MODE_WORKBENCH) {
+            return super.mouseScrolled(mouseX, mouseY, delta);
+        }
         int contentTop = this.topPos + CONTENT_Y;
         int contentBottom = contentTop + VIEWPORT_H;
-        if (mouseX >= this.leftPos && mouseX <= this.leftPos + this.imageWidth &&
+        if (mouseX >= this.leftPos + SIDEBAR_W && mouseX <= this.leftPos + this.imageWidth &&
             mouseY >= contentTop && mouseY <= contentBottom) {
             scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset - (int) (delta * 14)));
             updateFieldPositions();
@@ -873,6 +1717,12 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (this.textureField != null && this.textureField.isFocused()) {
+            if (keyCode == 256) { this.onClose(); return true; }
+            if (keyCode == 257) { onSave(); return true; }
+            this.textureField.keyPressed(keyCode, scanCode, modifiers);
+            return true;
+        }
         if (this.nameField.isFocused()) {
             if (keyCode == 256) { this.onClose(); return true; }
             if (keyCode == 257) { onSave(); return true; }
@@ -894,6 +1744,10 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
 
     @Override
     public boolean charTyped(char codePoint, int modifiers) {
+        if (this.textureField != null && this.textureField.isFocused()) {
+            this.textureField.charTyped(codePoint, modifiers);
+            return true;
+        }
         if (this.nameField.isFocused()) {
             this.nameField.charTyped(codePoint, modifiers);
             return true;
@@ -911,6 +1765,7 @@ public class CellConfiguratorScreen extends AbstractContainerScreen<CellConfigur
 
     private void clearAllFieldFocus() {
         this.nameField.setFocused(false);
+        if (this.textureField != null) this.textureField.setFocused(false);
         for (EntryGroup group : groups) {
             for (EditBox field : group.entryFields) {
                 field.setFocused(false);

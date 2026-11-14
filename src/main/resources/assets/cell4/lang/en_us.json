@@ -1,9 +1,12 @@
-{
+﻿{
   "itemGroup.cell4": "Cell\u2074 (Forge)",
 
   "item.cell4.infinity_item_cell": "Infinity Item Cell",
   "item.cell4.infinity_tag_cell": "Infinity Tag Cell",
   "item.cell4.infinity_modid_cell": "Infinity ModID Cell",
+  "item.cell4.portable_infinity_item_cell": "Portable Infinity Item Cell",
+  "item.cell4.portable_infinity_tag_cell": "Portable Infinity Tag Cell",
+  "item.cell4.portable_infinity_modid_cell": "Portable Infinity ModID Cell",
   "item.cell4.cell_configurator": "Cell Configurator",
 
   "tooltip.cell4.infinity": "\u221E Infinite",
@@ -13,6 +16,11 @@
   "tooltip.cell4.blacklist_item": "\u2716 %s",
   "tooltip.cell4.blacklist_tag": "\u2716 Tag: %s",
   "tooltip.cell4.blacklist_modid": "\u2716 Mod: @%s",
+  "tooltip.cell4.blacklist_pattern": "\u2716 Pattern: %s",
+  "tooltip.cell4.portable_energy": "Energy: %s / %s AE",
+  "tooltip.cell4.portable_cost": "Cost: %s FE/item",
+  "tooltip.cell4.portable_cost_free": "Cost: 0 FE (no power needed)",
+  "tooltip.cell4.portable_no_energy": "No energy required",
   "tooltip.cell4.more_items": "... and %s more",
 
   "gui.cell4.cell4item": "Items:",
@@ -20,9 +28,11 @@
   "gui.cell4.cell4modid": "Mod IDs:",
   "gui.cell4.blacklist": "Blacklist:",
   "gui.cell4.cell_name": "Name:",
+  "gui.cell4.cell_texture": "Texture:",
   "gui.cell4.save": "Save",
   "gui.cell4.reset": "Reset",
   "gui.cell4.clear": "Clear",
+  "gui.cell4.open_folder": "Folder",
   "gui.cell4.cell_slot": "Cell:",
   "gui.cell4.editing": "Editing: %s",
   "gui.cell4.no_cell": "Place a cell in the slot!",
@@ -36,16 +46,37 @@
   "gui.cell4.save_fail_invalid_blacklist_item": "Invalid blacklist item!",
   "gui.cell4.save_fail_invalid_blacklist_tag": "Invalid blacklist tag!",
   "gui.cell4.save_fail_invalid_blacklist_modid": "Invalid blacklist mod ID!",
+  "gui.cell4.save_fail_invalid_pattern": "Invalid glob/regex pattern!",
+  "gui.cell4.save_fail_invalid_power": "Invalid power value!",
   "gui.cell4.export_hint": "Use /give command for export",
 
+  "gui.cell4.workbench_title": "Config Slots",
+  "gui.cell4.toggle_ui": "Switch editor layout",
+  "gui.cell4.workbench_controls": "Actions",
+  "gui.cell4.workbench_other": "Other keys: %s",
+  "gui.cell4.workbench_count": "%s bound",
+
+  "gui.cell4.portable_cell": "Portable Cell",
+  "gui.cell4.portable_no_energy_short": "No energy required",
+  "gui.cell4.portable_no_power": "Not enough AE energy!",
+  "gui.cell4.portable_not_configured": "This item is not configured!",
+
+  "gui.cell4.help_title": "\u00a7lCell Configurator",
+  "gui.cell4.help_items": "Item/tag/mod ID: one per line; glob & regex allowed",
+  "gui.cell4.help_patterns": "Glob minecraft:* or ?; regex regex:.*diamond.*",
+  "gui.cell4.help_blacklist": "Blacklist: no prefix=item, #=tag, @=mod ID",
+  "gui.cell4.help_texture": "Texture: png file name under texture/ (without .png)",
+  "gui.cell4.help_hotkeys": "Press F3+T or restart the game after changing textures",
   "gui.cell4.help_shortcuts": "Tab: Switch field | Enter: Save | Esc: Close",
-  "gui.cell4.help_blacklist": "Blacklist: No prefix=item | #=tag | @=mod ID",
-  "gui.cell4.help_prefixes": "Prefixes: mekfluid: (Applied Mekanistics) mekchemical: (Applied Mekanistics)",
-  "gui.cell4.help_prefixes2": "IDs: energy:ars_source (Ars Energistique) energy:botania_mana (Applied Botanics Addon) energy:fe (AppFlux)",
   "gui.cell4.group_items": "Items",
   "gui.cell4.group_tags": "Tags",
   "gui.cell4.group_modids": "Mod IDs",
   "gui.cell4.group_blacklist": "Blacklist",
+  "gui.cell4.group_power": "Power",
+  "gui.cell4.power_max": "Max",
+  "gui.cell4.power_cost": "Cost",
+  "gui.cell4.power_charge": "Charge",
   "gui.cell4.preview": "Preview",
   "gui.cell4.preview_more": "... and %s more"
 }
+

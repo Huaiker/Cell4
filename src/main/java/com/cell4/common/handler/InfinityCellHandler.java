@@ -4,6 +4,7 @@ import appeng.api.storage.cells.StorageCell;
 import appeng.api.storage.cells.ICellHandler;
 import appeng.api.storage.cells.ISaveProvider;
 import com.cell4.common.item.IInfinityCell;
+import com.cell4.common.storage.AbstractInfinityStorage;
 import com.cell4.common.storage.InfinityItemStorage;
 import com.cell4.common.storage.InfinityModIdStorage;
 import com.cell4.common.storage.InfinityTagStorage;
@@ -41,9 +42,16 @@ public class InfinityCellHandler implements ICellHandler {
         if (is == null || is.isEmpty()) return null;
         if (!(is.getItem() instanceof IInfinityCell)) return null;
 
-        // 2.4: Return cached instance if available
-        StorageCell cached = storageCache.get(is);
-        if (cached != null) return cached;
+        // 2.4: Return cached instance if available.
+        // 配置器会就地修改元件 NBT，因此必须先校验缓存对应的 NBT 快照仍然一致，
+        // 否则重新插入同一个 ItemStack 时终端会继续显示旧的绑定配置。
+        // WeakHashMap 本身不是线程安全的（AE2 可能在多个线程上查询槽位），这里显式同步。
+        synchronized (storageCache) {
+            StorageCell cached = storageCache.get(is);
+            if (cached instanceof AbstractInfinityStorage infinityStorage && infinityStorage.matchesCell(is)) {
+                return cached;
+            }
+        }
 
         StorageCell storage;
         switch (((IInfinityCell) is.getItem()).getCellType()) {
@@ -53,7 +61,9 @@ public class InfinityCellHandler implements ICellHandler {
             default -> { return null; }
         }
 
-        storageCache.put(is, storage);
+        synchronized (storageCache) {
+            storageCache.put(is, storage);
+        }
         return storage;
     }
 }

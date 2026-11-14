@@ -18,6 +18,8 @@ public interface IInfinityCell {
     CellType getCellType();
     String translationKey();
 
+    default boolean isPortable() { return false; }
+
     default boolean canEditItem() { return false; }
     default boolean canEditTag() { return false; }
     default boolean canEditModId() { return false; }
@@ -44,6 +46,25 @@ public interface IInfinityCell {
         }
     }
 
+    default String getTextureName(ItemStack stack) {
+        var tag = stack.getTag();
+        if (tag == null) return "";
+        if (tag.contains(NBTKeys.TEXTURE)) return tag.getString(NBTKeys.TEXTURE);
+        if (tag.contains(NBTKeys.TEXTURE_ALIAS)) return tag.getString(NBTKeys.TEXTURE_ALIAS);
+        return "";
+    }
+
+    default void setTextureName(ItemStack stack, String name) {
+        var tag = stack.getOrCreateTag();
+        tag.remove(NBTKeys.TEXTURE_ALIAS);
+        if (name == null || name.isEmpty()) {
+            tag.remove(NBTKeys.TEXTURE);
+            if (tag.isEmpty()) stack.setTag(null);
+        } else {
+            tag.putString(NBTKeys.TEXTURE, name);
+        }
+    }
+
     default Component getDisplayName(ItemStack stack) {
         String customName = getCustomName(stack);
         if (!customName.isEmpty()) return Component.literal(customName);
@@ -60,6 +81,9 @@ public interface IInfinityCell {
         }
         for (String modId : blacklist.getModIds()) {
             lines.add(Component.translatable("tooltip.cell4.blacklist_modid", modId).withStyle(ChatFormatting.RED));
+        }
+        for (String pattern : blacklist.getPatterns()) {
+            lines.add(Component.translatable("tooltip.cell4.blacklist_pattern", pattern).withStyle(ChatFormatting.RED));
         }
     }
 

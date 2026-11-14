@@ -8,6 +8,8 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.nbt.TagParser;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.ItemStack;
@@ -35,6 +37,69 @@ public class Cell4Util {
     //   fluid:namespace:path   → AEFluidKey
     //   chemical:namespace:path → MekanismKey (if Mekanism + AppMek installed)
     //   namespace:path         → item first, then fluid (legacy behavior)
+
+    /**
+     * Parse a single item binding entry into an ItemStack.
+     * <p>
+     * Accepted forms (vanilla item NBT syntax):
+     * <ul>
+     *   <li>{@code minecraft:stone} — plain item id</li>
+     *   <li>{@code minecraft:diamond_sword{Enchantments:[...]}} — id plus SNBT tag</li>
+     *   <li>{@code {id:"minecraft:diamond_sword",Count:1,tag:{...}}} — full item compound</li>
+     * </ul>
+     * Returns null if the entry is not a resolvable item (e.g. fluids, chemicals, patterns).
+     */
+    public static ItemStack parseItemStackEntry(String entry) {
+        if (entry == null || entry.isEmpty()) return null;
+        String value = entry.trim();
+        if (value.isEmpty()) return null;
+
+        // Full item compound: {id:"minecraft:diamond_sword",Count:1,tag:{...}}
+        if (value.startsWith("{")) {
+            try {
+                CompoundTag tag = TagParser.parseTag(value);
+                if (!tag.contains("id", Tag.TAG_STRING)) return null;
+                // Vanilla requires Count; default to 1 so shorthand compounds still resolve.
+                if (!tag.contains("Count")) tag.putByte("Count", (byte) 1);
+                ItemStack stack = ItemStack.of(tag);
+                return stack.isEmpty() ? null : stack;
+            } catch (Exception e) {
+                warnParseFailure(value, e);
+                return null;
+            }
+        }
+
+        // id{...}: item id followed by an SNBT tag
+        int brace = value.indexOf('{');
+        if (brace > 0 && value.endsWith("}")) {
+            ResourceLocation snbtId = ResourceLocation.tryParse(value.substring(0, brace));
+            if (snbtId == null) return null;
+            var snbtItem = BuiltInRegistries.ITEM.getOptional(snbtId);
+            if (snbtItem.isEmpty()) return null;
+            try {
+                CompoundTag nbt = TagParser.parseTag(value.substring(brace));
+                ItemStack stack = new ItemStack(snbtItem.get());
+                stack.setTag(nbt);
+                return stack;
+            } catch (Exception e) {
+                warnParseFailure(value, e);
+                return null;
+            }
+        }
+
+        // Plain item id
+        ResourceLocation rl = ResourceLocation.tryParse(value);
+        if (rl == null) return null;
+        return BuiltInRegistries.ITEM.getOptional(rl).map(ItemStack::new).orElse(null);
+    }
+
+    /**
+     * 解析失败不再静默：输出条目摘要与异常，便于定位是哪一条绑定数据损坏。
+     */
+    private static void warnParseFailure(String entry, Exception error) {
+        com.cell4.Cell4.LOGGER.warn("Cell4: failed to parse item entry '{}'",
+                Cell4Patterns.abbreviate(entry), error);
+    }
 
     /**
      * Parse a user-entered identifier string into an AEKey.
@@ -79,11 +144,16 @@ public class Cell4Util {
             return null;
         }
 
-        // Legacy: try item, then fluid
+        // Item entries: plain id, id{...}, or a full {id:...,Count:...,tag:{...}} compound
+        ItemStack itemStack = parseItemStackEntry(id);
+        if (itemStack != null) {
+            AEItemKey itemKey = AEItemKey.of(itemStack);
+            if (itemKey != null) return itemKey;
+        }
+
+        // Legacy: try fluid
         ResourceLocation rl = ResourceLocation.tryParse(id);
         if (rl == null) return null;
-        var item = BuiltInRegistries.ITEM.getOptional(rl);
-        if (item.isPresent()) return AEItemKey.of(item.get());
         var fluid = BuiltInRegistries.FLUID.getOptional(rl);
         if (fluid.isPresent() && fluid.get() != Fluids.EMPTY) {
             return AEFluidKey.of(fluid.get());
@@ -101,13 +171,19 @@ public class Cell4Util {
         private final Set<AEKey> itemKeys;
         private final List<String> tagNames;
         private final Set<String> modIds;
+        private final List<String> patterns;
         // 2.3: Cache for tag blacklist matching results
         private final Map<String, Boolean> tagMatchCache = new HashMap<>();
 
         public BlacklistData(Set<AEKey> itemKeys, List<String> tagNames, Set<String> modIds) {
+            this(itemKeys, tagNames, modIds, Collections.emptyList());
+        }
+
+        public BlacklistData(Set<AEKey> itemKeys, List<String> tagNames, Set<String> modIds, List<String> patterns) {
             this.itemKeys = itemKeys;
             this.tagNames = tagNames;
             this.modIds = modIds;
+            this.patterns = patterns;
         }
 
         /**
@@ -139,6 +215,32 @@ public class Cell4Util {
                 if (ns != null && modIds.contains(ns)) return true;
             }
 
+            if (!patterns.isEmpty()) {
+                String keyId;
+                try {
+                    keyId = key.getId().toString();
+                } catch (Throwable t) {
+                    keyId = null;
+                }
+                if (keyId != null) {
+                    String cacheKey = keyId + "|pattern";
+                    Boolean cached = tagMatchCache.get(cacheKey);
+                    if (cached != null) {
+                        if (cached) return true;
+                    } else {
+                        boolean matches = false;
+                        for (String pattern : patterns) {
+                            if (Cell4Patterns.matches(pattern, key)) {
+                                matches = true;
+                                break;
+                            }
+                        }
+                        tagMatchCache.put(cacheKey, matches);
+                        if (matches) return true;
+                    }
+                }
+            }
+
             return false;
         }
 
@@ -146,7 +248,7 @@ public class Cell4Util {
          * Check if all blacklist types are empty.
          */
         public boolean isEmpty() {
-            return itemKeys.isEmpty() && tagNames.isEmpty() && modIds.isEmpty();
+            return itemKeys.isEmpty() && tagNames.isEmpty() && modIds.isEmpty() && patterns.isEmpty();
         }
 
         public Set<AEKey> getItemKeys() {
@@ -159,6 +261,10 @@ public class Cell4Util {
 
         public Set<String> getModIds() {
             return modIds;
+        }
+
+        public List<String> getPatterns() {
+            return patterns;
         }
     }
 
@@ -183,6 +289,7 @@ public class Cell4Util {
         Set<AEKey> itemKeys = new HashSet<>();
         List<String> tagNames = new ArrayList<>();
         Set<String> modIds = new HashSet<>();
+        List<String> patterns = new ArrayList<>();
 
         for (String id : ids) {
             if (id.startsWith("#")) {
@@ -197,6 +304,8 @@ public class Cell4Util {
                 if (!modId.isEmpty()) {
                     modIds.add(modId);
                 }
+            } else if (Cell4Patterns.isPattern(id)) {
+                patterns.add(id);
             } else {
                 // Use parseIdentifier so fluid:/chemical: prefixes are honored,
                 // and legacy plain ids fall back to item→fluid.
@@ -205,7 +314,7 @@ public class Cell4Util {
             }
         }
 
-        return new BlacklistData(itemKeys, tagNames, modIds);
+        return new BlacklistData(itemKeys, tagNames, modIds, patterns);
     }
 
     /**

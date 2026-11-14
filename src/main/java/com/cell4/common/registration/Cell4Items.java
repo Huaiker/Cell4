@@ -2,9 +2,11 @@ package com.cell4.common.registration;
 
 import com.cell4.Cell4;
 import com.cell4.common.item.CellConfigurator;
+import com.cell4.common.item.IInfinityCell;
 import com.cell4.common.item.InfinityItemCell;
 import com.cell4.common.item.InfinityModIdCell;
 import com.cell4.common.item.InfinityTagCell;
+import com.cell4.common.item.PortableInfinityCell;
 import net.minecraft.world.item.Item;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
@@ -26,4 +28,16 @@ public class Cell4Items {
 
     public static final RegistryObject<CellConfigurator> CELL_CONFIGURATOR =
             ITEMS.register("cell_configurator", CellConfigurator::new);
+
+    public static final RegistryObject<PortableInfinityCell> PORTABLE_INFINITY_ITEM_CELL =
+            ITEMS.register("portable_infinity_item_cell", () ->
+                    new PortableInfinityCell(new Item.Properties(), IInfinityCell.CellType.ITEM));
+
+    public static final RegistryObject<PortableInfinityCell> PORTABLE_INFINITY_TAG_CELL =
+            ITEMS.register("portable_infinity_tag_cell", () ->
+                    new PortableInfinityCell(new Item.Properties(), IInfinityCell.CellType.TAG));
+
+    public static final RegistryObject<PortableInfinityCell> PORTABLE_INFINITY_MODID_CELL =
+            ITEMS.register("portable_infinity_modid_cell", () ->
+                    new PortableInfinityCell(new Item.Properties(), IInfinityCell.CellType.MODID));
 }

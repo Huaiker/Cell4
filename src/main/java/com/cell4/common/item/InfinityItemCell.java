@@ -9,6 +9,7 @@ import appeng.api.storage.cells.ICellWorkbenchItem;
 import appeng.items.AEBaseItem;
 import appeng.items.storage.StorageCellTooltipComponent;
 import com.cell4.common.registration.Cell4Items;
+import com.cell4.common.util.Cell4Patterns;
 import com.cell4.common.util.Cell4Util;
 import com.cell4.common.util.NBTKeys;
 import net.minecraft.ChatFormatting;
@@ -79,6 +80,9 @@ public class InfinityItemCell extends AEBaseItem implements ICellWorkbenchItem, 
     /**
      * Parse identifier strings into AEKeys.
      * Tries item registry first, then fluid registry for each identifier.
+     * <p>
+     * 不再截断条目数：终端/预览需要显示全部有效条目（预览面板自身的 6 项上限除外）。
+     * 无法解析或 key 类型未注册的条目会输出 warn，而不是静默消失。
      */
     @NotNull
     public static List<AEKey> getRecords(ItemStack stack) {
@@ -87,14 +91,23 @@ public class InfinityItemCell extends AEBaseItem implements ICellWorkbenchItem, 
             return Collections.emptyList();
         }
 
-        List<AEKey> keys = new ArrayList<>(ids.size());
-        for (String id : ids) {
+        List<AEKey> keys = new ArrayList<>();
+        for (AEKey key : Cell4Patterns.resolveEntries(ids)) {
+            if (key == null) continue;
+            boolean registered;
             try {
-                AEKey key = Cell4Util.parseIdentifier(id);
-                if (key != null && isKeyTypeRegistered(key)) {
-                    keys.add(key);
-                }
-            } catch (Throwable ignored) {}
+                registered = isKeyTypeRegistered(key);
+            } catch (Throwable t) {
+                com.cell4.Cell4.LOGGER.warn("Cell4: cannot check key type of '{}' on {}",
+                        key, stack.getItem(), t);
+                continue;
+            }
+            if (!registered) {
+                com.cell4.Cell4.LOGGER.warn("Cell4: skipping key with unregistered type '{}' on {}",
+                        key, stack.getItem());
+                continue;
+            }
+            keys.add(key);
         }
         return keys;
     }
@@ -141,8 +154,10 @@ public class InfinityItemCell extends AEBaseItem implements ICellWorkbenchItem, 
     public void appendHoverText(@NotNull ItemStack is, Level world, @NotNull List<Component> lines, @NotNull TooltipFlag adv) {
         lines.add(Component.translatable("tooltip.cell4.infinity").withStyle(ChatFormatting.GREEN));
         List<String> ids = getIdentifiers(is);
-        if (ids.size() > 1) {
-            lines.add(Component.translatable("tooltip.cell4.item_count", ids.size()).withStyle(ChatFormatting.AQUA));
+        // 仅影响显示：重复的绑定条目只计一次。
+        int uniqueCount = new java.util.LinkedHashSet<>(ids).size();
+        if (uniqueCount > 1) {
+            lines.add(Component.translatable("tooltip.cell4.item_count", uniqueCount).withStyle(ChatFormatting.AQUA));
         }
 
         // Show blacklist entries
@@ -152,6 +167,11 @@ public class InfinityItemCell extends AEBaseItem implements ICellWorkbenchItem, 
     @NotNull
     @Override
     public Optional<TooltipComponent> getTooltipImage(@NotNull ItemStack stack) {
+        return buildTooltipImage(stack);
+    }
+
+    @NotNull
+    public static Optional<TooltipComponent> buildTooltipImage(ItemStack stack) {
         List<AEKey> records = getRecords(stack);
         Cell4Util.BlacklistData blacklist = Cell4Util.getBlacklistData(stack);
         if (records.isEmpty()) {
@@ -166,14 +186,19 @@ public class InfinityItemCell extends AEBaseItem implements ICellWorkbenchItem, 
         if (content.isEmpty()) {
             return Optional.empty();
         }
-        return Optional.of(new StorageCellTooltipComponent(List.of(), content, false, true));
+        // 与标签/模组元件一致：最多显示 18 个，其余用“...”表示
+        boolean hasMore = content.size() > 18;
+        if (hasMore) {
+            content = new ArrayList<>(content.subList(0, 18));
+        }
+        return Optional.of(new StorageCellTooltipComponent(List.of(), content, hasMore, true));
     }
 
     /**
      * Return the TRUE total count of bound keys (not capped).
      */
     public static int getPreviewTotalCount(ItemStack stack) {
-        List<AEKey> records = getRecords(stack);
+        List<AEKey> records = Cell4Patterns.resolveEntries(getIdentifiers(stack));
         Cell4Util.BlacklistData blacklist = Cell4Util.getBlacklistData(stack);
         int total = 0;
         for (AEKey key : records) {

@@ -85,7 +85,8 @@ public class InfinityModIdCell extends AEBaseItem implements ICellWorkbenchItem,
     @Override
     public void appendHoverText(@NotNull ItemStack is, Level world, @NotNull List<Component> lines, @NotNull TooltipFlag adv) {
         lines.add(Component.translatable("tooltip.cell4.infinity").withStyle(ChatFormatting.GREEN));
-        List<String> modIds = getModIds(is);
+        // 仅影响显示：重复的模组 ID 只显示一次。
+        List<String> modIds = new ArrayList<>(new java.util.LinkedHashSet<>(getModIds(is)));
         for (String id : modIds) {
             lines.add(Component.translatable("tooltip.cell4.modid_filter", id).withStyle(ChatFormatting.LIGHT_PURPLE));
         }
@@ -112,51 +113,77 @@ public class InfinityModIdCell extends AEBaseItem implements ICellWorkbenchItem,
     @NotNull
     @Override
     public Optional<TooltipComponent> getTooltipImage(@NotNull ItemStack stack) {
-        List<String> modIds = getModIds(stack);
-        if (modIds.isEmpty()) return Optional.empty();
+        return buildTooltipImage(stack);
+    }
 
-        List<AEItemKey> previewItems = new ArrayList<>();
-        int totalMatchCount = 0;
-        Cell4Util.BlacklistData blacklist = Cell4Util.getBlacklistData(stack);
-        Set<String> modIdSet = Set.copyOf(modIds);
+    @NotNull
+    public static Optional<TooltipComponent> buildTooltipImage(ItemStack stack) {
+        PreviewResult preview = computePreview(stack);
+        if (preview.keys().isEmpty()) return Optional.empty();
 
-        for (var item : BuiltInRegistries.ITEM) {
-            ResourceLocation rl = BuiltInRegistries.ITEM.getKey(item);
-            if (rl != null && modIdSet.contains(rl.getNamespace())) {
-                var key = AEItemKey.of(item);
-                if (key != null && !blacklist.isBlacklisted(key)) {
-                    totalMatchCount++;
-                    if (previewItems.size() < 18) previewItems.add(key);
-                }
-            }
-        }
-
-        if (previewItems.isEmpty()) return Optional.empty();
-
-        List<GenericStack> content = new ArrayList<>(previewItems.size());
-        for (AEItemKey key : previewItems) {
+        List<GenericStack> content = new ArrayList<>(preview.keys().size());
+        for (AEItemKey key : preview.keys()) {
             content.add(new GenericStack(key, IInfinityCell.getAsIntMax(key)));
         }
-        return Optional.of(new StorageCellTooltipComponent(List.of(), content, totalMatchCount > previewItems.size(), true));
+        return Optional.of(new StorageCellTooltipComponent(List.of(), content,
+                preview.total() > preview.keys().size(), true));
     }
 
     /**
      * Return the TRUE total count of matching items (not capped to 18).
      */
     public static int getPreviewTotalCount(ItemStack stack) {
-        List<String> modIds = getModIds(stack);
-        if (modIds.isEmpty()) return 0;
-        Cell4Util.BlacklistData blacklist = Cell4Util.getBlacklistData(stack);
-        Set<String> modIdSet = Set.copyOf(modIds);
-        int total = 0;
-        for (var item : BuiltInRegistries.ITEM) {
-            ResourceLocation rl = BuiltInRegistries.ITEM.getKey(item);
-            if (rl != null && modIdSet.contains(rl.getNamespace())) {
-                var key = AEItemKey.of(item);
-                if (key != null && !blacklist.isBlacklisted(key)) total++;
-            }
+        return computePreview(stack).total();
+    }
+
+    // === Preview cache ===
+    // 预览面板每帧都会同时取 tooltip 图标与总数，之前每帧要全量扫描两遍注册表。
+    private static final int MAX_PREVIEW_CACHE = 16;
+    private static final Map<String, PreviewResult> PREVIEW_CACHE = new LinkedHashMap<>(16, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, PreviewResult> eldest) {
+            return size() > MAX_PREVIEW_CACHE;
         }
-        return total;
+    };
+
+    /** 前 18 个预览 key + 真实匹配总数。 */
+    private record PreviewResult(List<AEItemKey> keys, int total) {}
+
+    private static PreviewResult computePreview(ItemStack stack) {
+        String signature = String.join("\u0001", new java.util.LinkedHashSet<>(getModIds(stack)))
+                + "\u0002" + String.join("\u0001", Cell4Util.getBlacklistIds(stack));
+        synchronized (PREVIEW_CACHE) {
+            PreviewResult cached = PREVIEW_CACHE.get(signature);
+            if (cached != null) return cached;
+        }
+
+        List<String> modIds = getModIds(stack);
+        PreviewResult result;
+        if (modIds.isEmpty()) {
+            result = new PreviewResult(List.of(), 0);
+        } else {
+            List<AEItemKey> previewItems = new ArrayList<>();
+            int totalMatchCount = 0;
+            Cell4Util.BlacklistData blacklist = Cell4Util.getBlacklistData(stack);
+            Set<String> modIdSet = Set.copyOf(modIds);
+
+            for (var item : BuiltInRegistries.ITEM) {
+                ResourceLocation rl = BuiltInRegistries.ITEM.getKey(item);
+                if (rl != null && modIdSet.contains(rl.getNamespace())) {
+                    var key = AEItemKey.of(item);
+                    if (key != null && !blacklist.isBlacklisted(key)) {
+                        totalMatchCount++;
+                        if (previewItems.size() < 18) previewItems.add(key);
+                    }
+                }
+            }
+            result = new PreviewResult(previewItems, totalMatchCount);
+        }
+
+        synchronized (PREVIEW_CACHE) {
+            PREVIEW_CACHE.put(signature, result);
+        }
+        return result;
     }
 
     @Override

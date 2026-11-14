@@ -15,7 +15,11 @@ import net.minecraft.world.item.ItemStack;
 
 public class CellConfiguratorMenu extends AbstractContainerMenu {
 
-    private static final int PLAYER_INV_X = 64;
+    public static final int SIDEBAR_WIDTH = 18;
+    // 第一个 UI（列表编辑器）的槽位坐标；第二个 UI 由界面在客户端换成 AE2 布局
+    private static final int CELL_SLOT_X = 9 + SIDEBAR_WIDTH;
+    private static final int CELL_SLOT_Y = 23;
+    private static final int PLAYER_INV_X = 64 + SIDEBAR_WIDTH;
     private static final int PLAYER_INV_Y = 192;
 
     private final Container cellContainer;
@@ -42,8 +46,8 @@ public class CellConfiguratorMenu extends AbstractContainerMenu {
             }
         };
 
-        // Cell input slot (moved x+1 to the right)
-        this.addSlot(new Slot(this.cellContainer, 0, 9, 23) {
+        // Cell input slot
+        this.addSlot(new Slot(this.cellContainer, 0, CELL_SLOT_X, CELL_SLOT_Y) {
             @Override
             public boolean mayPlace(ItemStack stack) {
                 return isValidCell(stack);
@@ -156,6 +160,11 @@ public class CellConfiguratorMenu extends AbstractContainerMenu {
 
     public static boolean canEditName(ItemStack stack) {
         if (stack.getItem() instanceof IInfinityCell cell) return cell.canEditName();
+        return false;
+    }
+
+    public static boolean canEditPower(ItemStack stack) {
+        if (stack.getItem() instanceof IInfinityCell cell) return cell.isPortable();
         return false;
     }
 

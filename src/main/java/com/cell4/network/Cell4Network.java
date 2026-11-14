@@ -26,5 +26,9 @@ public class Cell4Network {
             CellConfigResponsePacket::encode,
             CellConfigResponsePacket::decode,
             CellConfigResponsePacket::handle);
+        CHANNEL.registerMessage(nextId++, OpenTextureFolderPacket.class,
+            OpenTextureFolderPacket::encode,
+            OpenTextureFolderPacket::decode,
+            OpenTextureFolderPacket::handle);
     }
 }

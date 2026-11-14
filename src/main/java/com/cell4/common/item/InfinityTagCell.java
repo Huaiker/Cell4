@@ -27,7 +27,9 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -136,13 +138,14 @@ public class InfinityTagCell extends AEBaseItem implements ICellWorkbenchItem, I
     public void appendHoverText(@NotNull ItemStack is, Level world, @NotNull List<Component> lines, @NotNull TooltipFlag adv) {
         lines.add(Component.translatable("tooltip.cell4.infinity").withStyle(ChatFormatting.GREEN));
 
-        List<String> tags = getTagNames(is);
+        // 仅影响显示：重复的过滤条目只显示一次。
+        List<String> tags = new ArrayList<>(new java.util.LinkedHashSet<>(getTagNames(is)));
         for (String tag : tags) {
             lines.add(Component.translatable("tooltip.cell4.tag_filter", tag).withStyle(ChatFormatting.AQUA));
         }
 
         // Show modid filters
-        List<String> modIds = getModIds(is);
+        List<String> modIds = new ArrayList<>(new java.util.LinkedHashSet<>(getModIds(is)));
         for (String id : modIds) {
             lines.add(Component.translatable("tooltip.cell4.modid_filter", id).withStyle(ChatFormatting.LIGHT_PURPLE));
         }
@@ -154,14 +157,72 @@ public class InfinityTagCell extends AEBaseItem implements ICellWorkbenchItem, I
     @NotNull
     @Override
     public Optional<TooltipComponent> getTooltipImage(@NotNull ItemStack stack) {
-        List<String> tagNames = getTagNames(stack);
-        List<String> modIds = getModIds(stack);
+        return buildTooltipImage(stack);
+    }
+
+    @NotNull
+    public static Optional<TooltipComponent> buildTooltipImage(ItemStack stack) {
+        PreviewResult preview = computePreview(stack);
+        if (preview.keys().isEmpty()) return Optional.empty();
+
+        List<GenericStack> content = new ArrayList<>(preview.keys().size());
+        for (AEKey key : preview.keys()) {
+            content.add(new GenericStack(key, IInfinityCell.getAsIntMax(key)));
+        }
+
+        return Optional.of(new StorageCellTooltipComponent(List.of(), content,
+                preview.total() > preview.keys().size(), true));
+    }
+
+    /**
+     * Return the TRUE total count of matching keys (not capped to 18).
+     */
+    public static int getPreviewTotalCount(ItemStack stack) {
+        return computePreview(stack).total();
+    }
+
+    // === Preview cache ===
+    // 预览面板每帧都会同时取 tooltip 图标与总数，之前每帧要全量扫描两遍注册表。
+    private static final int MAX_PREVIEW_CACHE = 16;
+    private static final Map<String, PreviewResult> PREVIEW_CACHE = new LinkedHashMap<>(16, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, PreviewResult> eldest) {
+            return size() > MAX_PREVIEW_CACHE;
+        }
+    };
+
+    /** 前 18 个预览 key + 真实匹配总数。 */
+    private record PreviewResult(List<AEKey> keys, int total) {}
+
+    private static String previewSignature(ItemStack stack) {
+        return String.join("\u0001", new java.util.LinkedHashSet<>(getTagNames(stack)))
+                + "\u0002" + String.join("\u0001", new java.util.LinkedHashSet<>(getModIds(stack)))
+                + "\u0002" + String.join("\u0001", Cell4Util.getBlacklistIds(stack));
+    }
+
+    private static PreviewResult computePreview(ItemStack stack) {
+        String signature = previewSignature(stack);
+        synchronized (PREVIEW_CACHE) {
+            PreviewResult cached = PREVIEW_CACHE.get(signature);
+            if (cached != null) return cached;
+        }
+        PreviewResult result = scanPreview(stack);
+        synchronized (PREVIEW_CACHE) {
+            PREVIEW_CACHE.put(signature, result);
+        }
+        return result;
+    }
+
+    private static PreviewResult scanPreview(ItemStack stack) {
+        // 仅影响显示：重复的标签/模组 ID 只展开一次。
+        List<String> tagNames = new ArrayList<>(new java.util.LinkedHashSet<>(getTagNames(stack)));
+        List<String> modIds = new ArrayList<>(new java.util.LinkedHashSet<>(getModIds(stack)));
         boolean hasTags = !tagNames.isEmpty();
         boolean hasModIds = !modIds.isEmpty();
         Set<String> modIdSet = Set.copyOf(modIds);
 
         // 5.1: Allow pure ModID mode
-        if (!hasTags && !hasModIds) return Optional.empty();
+        if (!hasTags && !hasModIds) return new PreviewResult(List.of(), 0);
 
         List<AEKey> previewKeys = new ArrayList<>();
         int totalMatchCount = 0;
@@ -204,7 +265,7 @@ public class InfinityTagCell extends AEBaseItem implements ICellWorkbenchItem, I
                     if (previewKeys.size() < 18) previewKeys.add(chemicalKey);
                 }
             }
-        } else if (hasModIds) {
+        } else {
             // 5.1: Pure ModID mode for Tag cell
             for (var item : BuiltInRegistries.ITEM) {
                 if (Cell4Util.belongsToMod(AEItemKey.of(item), modIdSet)) {
@@ -233,75 +294,7 @@ public class InfinityTagCell extends AEBaseItem implements ICellWorkbenchItem, I
             }
         }
 
-        if (previewKeys.isEmpty()) return Optional.empty();
-
-        List<GenericStack> content = new ArrayList<>(previewKeys.size());
-        for (AEKey key : previewKeys) {
-            content.add(new GenericStack(key, IInfinityCell.getAsIntMax(key)));
-        }
-
-        return Optional.of(new StorageCellTooltipComponent(List.of(), content, totalMatchCount > previewKeys.size(), true));
-    }
-
-    /**
-     * Return the TRUE total count of matching keys (not capped to 18).
-     */
-    public static int getPreviewTotalCount(ItemStack stack) {
-        List<String> tagNames = getTagNames(stack);
-        List<String> modIds = getModIds(stack);
-        boolean hasTags = !tagNames.isEmpty();
-        boolean hasModIds = !modIds.isEmpty();
-        Set<String> modIdSet = Set.copyOf(modIds);
-        Cell4Util.BlacklistData blacklist = Cell4Util.getBlacklistData(stack);
-        int total = 0;
-
-        if (hasTags) {
-            for (String tagName : tagNames) {
-                ResourceLocation tagRL = ResourceLocation.tryParse(tagName);
-                if (tagRL == null) continue;
-
-                TagKey<net.minecraft.world.item.Item> itemTag = TagKey.create(BuiltInRegistries.ITEM.key(), tagRL);
-                for (var holder : BuiltInRegistries.ITEM.getTagOrEmpty(itemTag)) {
-                    var key = AEItemKey.of(holder.value());
-                    if (key == null || blacklist.isBlacklisted(key)) continue;
-                    if (hasModIds && !Cell4Util.belongsToMod(key, modIdSet)) continue;
-                    total++;
-                }
-
-                TagKey<Fluid> fluidTag = TagKey.create(BuiltInRegistries.FLUID.key(), tagRL);
-                for (var holder : BuiltInRegistries.FLUID.getTagOrEmpty(fluidTag)) {
-                    Fluid fluid = holder.value();
-                    if (fluid == Fluids.EMPTY) continue;
-                    ResourceLocation fluidRl = BuiltInRegistries.FLUID.getKey(fluid);
-                    if (fluidRl != null && fluidRl.getPath().startsWith("flowing_")) continue;
-                    var key = AEFluidKey.of(fluid);
-                    if (key == null || blacklist.isBlacklisted(key)) continue;
-                    if (hasModIds && !Cell4Util.belongsToMod(key, modIdSet)) continue;
-                    total++;
-                }
-
-                for (AEKey chemicalKey : MekanismIntegration.getChemicalKeysByTag(tagName)) {
-                    if (hasModIds && !Cell4Util.belongsToMod(chemicalKey, modIdSet)) continue;
-                    if (!blacklist.isBlacklisted(chemicalKey)) total++;
-                }
-            }
-        } else if (hasModIds) {
-            for (var item : BuiltInRegistries.ITEM) {
-                var key = AEItemKey.of(item);
-                if (key != null && Cell4Util.belongsToMod(key, modIdSet) && !blacklist.isBlacklisted(key)) total++;
-            }
-            for (var fluid : BuiltInRegistries.FLUID) {
-                if (fluid == Fluids.EMPTY) continue;
-                ResourceLocation rl = BuiltInRegistries.FLUID.getKey(fluid);
-                if (rl != null && rl.getPath().startsWith("flowing_")) continue;
-                var key = AEFluidKey.of(fluid);
-                if (key != null && Cell4Util.belongsToMod(key, modIdSet) && !blacklist.isBlacklisted(key)) total++;
-            }
-            for (AEKey chemicalKey : MekanismIntegration.getAllChemicalKeys()) {
-                if (Cell4Util.belongsToMod(chemicalKey, modIdSet) && !blacklist.isBlacklisted(chemicalKey)) total++;
-            }
-        }
-        return total;
+        return new PreviewResult(previewKeys, totalMatchCount);
     }
 
     @Override
