@@ -4,6 +4,7 @@ import appeng.api.storage.cells.StorageCell;
 import appeng.api.storage.cells.ICellHandler;
 import appeng.api.storage.cells.ISaveProvider;
 import com.cell4.common.item.IInfinityCell;
+import com.cell4.common.storage.AbstractInfinityStorage;
 import com.cell4.common.storage.InfinityItemStorage;
 import com.cell4.common.storage.InfinityModIdStorage;
 import com.cell4.common.storage.InfinityTagStorage;
@@ -41,9 +42,13 @@ public class InfinityCellHandler implements ICellHandler {
         if (is == null || is.isEmpty()) return null;
         if (!(is.getItem() instanceof IInfinityCell)) return null;
 
-        // 2.4: Return cached instance if available
+        // 2.4: Return cached instance if available.
+        // 配置器会就地修改元件数据组件，因此必须先校验缓存对应的数据快照仍然一致，
+        // 否则重新插入同一个 ItemStack 时终端会继续显示旧的绑定配置。
         StorageCell cached = storageCache.get(is);
-        if (cached != null) return cached;
+        if (cached instanceof AbstractInfinityStorage infinityStorage && infinityStorage.matchesCell(is)) {
+            return cached;
+        }
 
         StorageCell storage;
         switch (((IInfinityCell) is.getItem()).getCellType()) {

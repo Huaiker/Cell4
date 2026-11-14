@@ -23,5 +23,10 @@ public class Cell4Network {
             CellConfigResponsePacket.STREAM_CODEC,
             CellConfigResponsePacket::handle
         );
+        registrar.playToClient(
+            OpenTextureFolderPacket.TYPE,
+            OpenTextureFolderPacket.STREAM_CODEC,
+            OpenTextureFolderPacket::handle
+        );
     }
 }

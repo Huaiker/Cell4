@@ -2,82 +2,94 @@ package com.cell4.common.storage;
 
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.KeyCounter;
-import appeng.api.stacks.GenericStack;
 import com.cell4.common.item.IInfinityCell;
 import com.cell4.common.item.InfinityItemCell;
+import com.cell4.common.util.Cell4Patterns;
 import com.cell4.common.util.Cell4Util;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * StorageCell implementation for the Infinity Item Cell.
  * Provides infinite extraction of specific AEKeys (items, fluids, etc.).
  * Insertion of matching keys is accepted but items are silently discarded (phantom storage).
- * Supports blacklist via cell4blacklist NBT key.
+ * Supports blacklist via cell4blacklist NBT key and glob/regex patterns via cell4item.
  */
 public class InfinityItemStorage extends AbstractInfinityStorage {
 
-    private final List<AEKey> recordKeys;
-    private final Set<AEKey> recordKeySet;
-    private KeyCounter cachedAvailableStacks;
-    private boolean cacheValid = false;
+    private final List<String> patterns;
+    /**
+     * 精确条目 → key。map 的键是“完整条目字符串”，因此同 ID 不同组件/NBT 的变体
+     * 各自保留一个独立 key，不会被 AEKey 的相等性合并（否则终端只显示一格）。
+     */
+    private final Map<String, AEKey> exactVariants;
+    /** 快速过滤：变体 key 的集合。 */
+    private final Set<AEKey> exactKeys;
+    private List<AEKey> cachedAvailableKeys;
 
     public InfinityItemStorage(ItemStack cellItem) {
         super(cellItem);
-        this.recordKeys = InfinityItemCell.getRecords(cellItem);
-        this.recordKeySet = recordKeys.stream().collect(Collectors.toSet());
+        List<String> entries = InfinityItemCell.getIdentifiers(cellItem);
+        this.exactKeys = new HashSet<>();
+        this.exactVariants = new LinkedHashMap<>();
+        this.patterns = new ArrayList<>();
+        for (String entry : entries) {
+            if (entry == null || entry.isEmpty()) continue;
+            // 组件语法 / SNBT / 完整 compound 必须先按精确条目处理，绝不能当 glob。
+            if (!Cell4Patterns.isPattern(entry) || Cell4Patterns.isExactItemSyntax(entry)) {
+                AEKey key = Cell4Patterns.parseExactEntry(entry);
+                if (key != null) {
+                    exactVariants.putIfAbsent(entry, key);
+                    exactKeys.add(key);
+                    continue;
+                }
+                if (!Cell4Patterns.isPattern(entry)) continue;
+            }
+            if (Cell4Patterns.isValidPattern(entry)) patterns.add(entry);
+        }
     }
 
     @Override
     protected boolean matchesFilter(AEKey what) {
-        return recordKeySet.contains(what);
+        if (exactKeys.contains(what)) return true;
+        for (String pattern : patterns) {
+            if (Cell4Patterns.matches(pattern, what)) return true;
+        }
+        return false;
     }
 
     @Override
     protected boolean hasConfiguration() {
-        return !recordKeys.isEmpty();
+        return !exactKeys.isEmpty() || !patterns.isEmpty();
     }
 
     @Override
     public void getAvailableStacks(KeyCounter out) {
         // 2.2: Lazy-load and cache available stacks
-        if (!cacheValid) {
-            cachedAvailableStacks = new KeyCounter();
-            for (AEKey key : recordKeys) {
-                if (!blacklist.isBlacklisted(key)) {
-                    cachedAvailableStacks.add(key, IInfinityCell.getAsIntMax(key));
+        if (cachedAvailableKeys == null) {
+            Map<String, AEKey> keys = new LinkedHashMap<>(exactVariants);
+            for (String pattern : patterns) {
+                for (AEKey key : Cell4Patterns.expand(pattern)) {
+                    if (key != null) keys.putIfAbsent("pattern|" + key, key);
                 }
             }
-            cacheValid = true;
-        }
-        // Use set() instead of add() to prevent overflow.
-        // AE2's KeyCounter.add() does raw long arithmetic: Long.MAX_VALUE + any positive
-        // amount overflows to a negative long, causing AE2 to hide the stack from the terminal.
-        // set() directly replaces the value, so it never accumulates beyond Long.MAX_VALUE.
-        //
-        // We always set to Long.MAX_VALUE (the cached value), regardless of what other cells
-        // may have already added. This means:
-        // - If our cell is called AFTER other cells: their add() results are overwritten — fine,
-        //   infinite + finite = infinite.
-        // - If our cell is called BEFORE other cells: we set MAX, then their add() may overflow.
-        //   AE2 will hide the stack until the next cache refresh, when our cell runs again and
-        //   detects the negative (overflowed) value, resetting it back to MAX.
-        // - If the counter is already in a negative (broken) state, we reset it to MAX.
-        for (var entry : cachedAvailableStacks) {
-            AEKey key = entry.getKey();
-            long existing = out.get(key);
-            if (existing < 0) {
-                // Counter overflowed from a previous add() — reset to MAX.
-                out.set(key, Long.MAX_VALUE);
-            } else if (existing < Long.MAX_VALUE) {
-                // Overwrite whatever was there (0 or a finite amount from other cells) with MAX.
-                out.set(key, Long.MAX_VALUE);
+            List<AEKey> available = new ArrayList<>(keys.size());
+            for (AEKey key : keys.values()) {
+                if (!blacklist.isBlacklisted(key)) available.add(key);
             }
-            // else existing == Long.MAX_VALUE — already at max, no action needed.
+            cachedAvailableKeys = available;
+        }
+        // Use set() instead of add() to prevent overflow: every NBT variant is
+        // reported independently at Long.MAX_VALUE so the terminal shows one row each.
+        for (AEKey key : cachedAvailableKeys) {
+            out.set(key, Long.MAX_VALUE);
         }
     }
 

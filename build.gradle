@@ -16,14 +16,44 @@ java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
 repositories {
     maven {
-        name = "AE2 Maven"
+        name = "modmaven"
         url = "https://modmaven.dev/"
+    }
+    maven {
+        name = "Aliyun Public"
+        url = "https://maven.aliyun.com/repository/public"
     }
     maven {
         name = "Modrinth Maven"
         url = "https://api.modrinth.com/maven"
     }
+    // JEI / REI 的 API（仅编译期，运行时由玩家安装的模组提供）
+    maven {
+        name = "BlameJared"
+        url = "https://maven.blamejared.com"
+    }
+    maven {
+        name = "Shedaniel"
+        url = "https://maven.shedaniel.me"
+    }
     mavenCentral()
+}
+
+// maven.neoforged.net 在国内无法直连，统一重写为 ForgeCDN 镜像（对之后新增的仓库同样生效）
+repositories.configureEach { repo ->
+    if (repo instanceof org.gradle.api.artifacts.repositories.MavenArtifactRepository) {
+        def repoUrl = repo.url.toString()
+        if (repoUrl.contains("maven.neoforged.net")) {
+            repo.url = repoUrl.replace("https://maven.neoforged.net/", "https://neoforged.forgecdn.net/")
+        }
+    }
+}
+
+// 把镜像仓库排到最后：优先用阿里云/Maven Central，缺失的 NeoForge 构件才走 ForgeCDN
+afterEvaluate {
+    def mirrors = repositories.findAll { it.url.toString().contains("neoforged.forgecdn.net") }
+    mirrors.each { repositories.remove(it) }
+    mirrors.each { repositories.add(it) }
 }
 
 neoForge {
@@ -63,6 +93,14 @@ dependencies {
     compileOnly "de.mari_023:ae2wtlib:${ae2wtlib_version}"
     // Mekanism API (from modmaven)
     compileOnly "mekanism:Mekanism:${mekanism_version}:api"
+    // 可选兼容：JEI / REI / EMI，仅编译期依赖，玩家安装对应模组后才生效
+    compileOnly "mezz.jei:jei-1.21.1-neoforge:19.70.0.469"
+    // REI 自身的 POM 会拉 architectury/cloth-config 运行时依赖，这里只取本体
+    compileOnly("me.shedaniel:RoughlyEnoughItems-neoforge:16.0.799") { transitive = false }
+    // REI API 的 me.shedaniel.math.Rectangle 来自 basic-math
+    compileOnly "me.shedaniel.cloth:basic-math:0.6.1"
+    // EMI 的 maven（maven.terraformersmc.com）在国内不可达，使用本地 jar
+    compileOnly files("libs/emi-1.1.24+1.21.1+neoforge.jar")
 }
 
 jar {

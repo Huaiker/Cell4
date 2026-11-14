@@ -18,6 +18,9 @@ public interface IInfinityCell {
     CellType getCellType();
     String translationKey();
 
+    /** True for portable variants (they support the power fields in the configurator). */
+    default boolean isPortable() { return false; }
+
     default boolean canEditItem() { return false; }
     default boolean canEditTag() { return false; }
     default boolean canEditModId() { return false; }
@@ -39,6 +42,25 @@ public interface IInfinityCell {
         Cell4Util.setCustomTag(stack, tag);
     }
 
+    /** Custom texture set name stored in cell4texture, or an empty string. */
+    default String getTextureName(ItemStack stack) {
+        var tag = Cell4Util.getCustomTag(stack);
+        if (tag.contains(NBTKeys.TEXTURE)) return tag.getString(NBTKeys.TEXTURE);
+        if (tag.contains(NBTKeys.TEXTURE_ALIAS)) return tag.getString(NBTKeys.TEXTURE_ALIAS);
+        return "";
+    }
+
+    default void setTextureName(ItemStack stack, String name) {
+        var tag = Cell4Util.getCustomTag(stack);
+        tag.remove(NBTKeys.TEXTURE_ALIAS);
+        if (name == null || name.isEmpty()) {
+            tag.remove(NBTKeys.TEXTURE);
+        } else {
+            tag.putString(NBTKeys.TEXTURE, name);
+        }
+        Cell4Util.setCustomTag(stack, tag);
+    }
+
     default Component getDisplayName(ItemStack stack) {
         String customName = getCustomName(stack);
         if (!customName.isEmpty()) return Component.literal(customName);
@@ -55,6 +77,9 @@ public interface IInfinityCell {
         }
         for (String modId : blacklist.getModIds()) {
             lines.add(Component.translatable("tooltip.cell4.blacklist_modid", modId).withStyle(ChatFormatting.RED));
+        }
+        for (String pattern : blacklist.getPatterns()) {
+            lines.add(Component.translatable("tooltip.cell4.blacklist_pattern", pattern).withStyle(ChatFormatting.RED));
         }
     }
 
