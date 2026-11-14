@@ -28,6 +28,9 @@ public class Cell4CreativeTab {
                                 output.accept(Cell4Items.INFINITY_ITEM_CELL.get());
                                 output.accept(Cell4Items.INFINITY_TAG_CELL.get());
                                 output.accept(Cell4Items.INFINITY_MODID_CELL.get());
+                                output.accept(Cell4Items.PORTABLE_INFINITY_ITEM_CELL.get());
+                                output.accept(Cell4Items.PORTABLE_INFINITY_TAG_CELL.get());
+                                output.accept(Cell4Items.PORTABLE_INFINITY_MODID_CELL.get());
                                 output.accept(Cell4Items.CELL_CONFIGURATOR.get());
                                 
                                 // Preset: minecraft:logs tag cell

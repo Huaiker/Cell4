@@ -92,10 +92,10 @@ public class InfinityTagCell extends AEBaseItem implements ICellWorkbenchItem, I
     @Override
     public void appendHoverText(@NotNull ItemStack is, @NotNull Item.TooltipContext context, @NotNull TooltipDisplay display, @NotNull Consumer<Component> tooltipAdder, @NotNull TooltipFlag adv) {
         tooltipAdder.accept(Component.translatable("tooltip.cell4.infinity").withStyle(ChatFormatting.GREEN));
-        for (String tag : getTagNames(is)) {
+        for (String tag : new java.util.LinkedHashSet<>(getTagNames(is))) {
             tooltipAdder.accept(Component.translatable("tooltip.cell4.tag_filter", tag).withStyle(ChatFormatting.AQUA));
         }
-        for (String id : getModIds(is)) {
+        for (String id : new java.util.LinkedHashSet<>(getModIds(is))) {
             tooltipAdder.accept(Component.translatable("tooltip.cell4.modid_filter", id).withStyle(ChatFormatting.LIGHT_PURPLE));
         }
         appendBlacklistTooltip(is, tooltipAdder);
@@ -104,6 +104,11 @@ public class InfinityTagCell extends AEBaseItem implements ICellWorkbenchItem, I
     @NotNull
     @Override
     public Optional<TooltipComponent> getTooltipImage(@NotNull ItemStack stack) {
+        return buildTooltipImage(stack);
+    }
+
+    @NotNull
+    public static Optional<TooltipComponent> buildTooltipImage(ItemStack stack) {
         List<String> tagNames = getTagNames(stack);
         List<String> modIds = getModIds(stack);
         boolean hasTags = !tagNames.isEmpty();

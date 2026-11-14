@@ -9,16 +9,43 @@ version = mod_version
 group = mod_group_id
 
 base {
-    archivesName = 'Cell4-26.1.2neo'
+    archivesName = 'Cell4-26.1.2-NeoForge'
 }
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(25)
 
 repositories {
     maven {
-        name = "AE2 Maven"
-        url = "https://modmaven.dev/"
+        name = "Aliyun Public"
+        url = "https://maven.aliyun.com/repository/public"
     }
+    mavenCentral()
+    // JEI / REI 的 API（仅编译期，运行时由玩家安装的模组提供）
+    maven {
+        name = "BlameJared"
+        url = "https://maven.blamejared.com"
+    }
+    maven {
+        name = "Shedaniel"
+        url = "https://maven.shedaniel.me"
+    }
+}
+
+// maven.neoforged.net 在国内无法直连，统一重写为 ForgeCDN 镜像（对之后新增的仓库同样生效）
+repositories.configureEach { repo ->
+    if (repo instanceof org.gradle.api.artifacts.repositories.MavenArtifactRepository) {
+        def repoUrl = repo.url.toString()
+        if (repoUrl.contains("maven.neoforged.net")) {
+            repo.url = repoUrl.replace("https://maven.neoforged.net/", "https://neoforged.forgecdn.net/")
+        }
+    }
+}
+
+// 把镜像仓库排到最后：优先用阿里云/Maven Central，缺失的 NeoForge 构件才走 ForgeCDN
+afterEvaluate {
+    def mirrors = repositories.findAll { it.url.toString().contains("neoforged.forgecdn.net") }
+    mirrors.each { repositories.remove(it) }
+    mirrors.each { repositories.add(it) }
 }
 
 neoForge {
@@ -62,6 +89,11 @@ tasks.named('processResources').configure {
 dependencies {
     implementation "org.appliedenergistics:appliedenergistics2:${ae2_version}"
     implementation "org.appliedenergistics:guideme:${guideme_version}"
+    // 可选兼容：玩家安装后才生效
+    compileOnly "mezz.jei:jei-26.1.2-neoforge:29.53.0.115"
+    compileOnly "me.shedaniel:RoughlyEnoughItems-neoforge:26.1.818"
+    // NFRT 会按需下载 binarypatcher 的 fatjar；加入外部工具清单，避免它直连 maven.neoforged.net
+    add("neoFormRuntimeExternalTools", "net.neoforged.installertools:binarypatcher:4.0.12:fatjar")
 }
 
 jar {

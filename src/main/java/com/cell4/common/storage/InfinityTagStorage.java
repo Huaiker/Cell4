@@ -137,8 +137,10 @@ public class InfinityTagStorage extends AbstractInfinityStorage {
             }
             cacheValid = true;
         }
+        // set() instead of add(): KeyCounter.add() would overflow Long.MAX_VALUE to a negative
+        // value when another storage already provides the same key, hiding the stack in AE2.
         for (var entry : cachedAvailableStacks) {
-            out.add(entry.getKey(), entry.getLongValue());
+            out.set(entry.getKey(), Long.MAX_VALUE);
         }
     }
 

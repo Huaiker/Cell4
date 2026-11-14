@@ -4,7 +4,7 @@ license="MIT"
 
 [[mods]]
 modId="cell4"
-version="1.0.3"
+version="1.0.5"
 displayName="Cell4"
 authors="Cell4"
 description='''AE2 addon adding Infinity Cells that support filtering by item, tag, and mod ID.'''

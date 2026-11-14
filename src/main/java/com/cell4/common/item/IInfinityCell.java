@@ -36,6 +36,8 @@ public interface IInfinityCell {
      */
     String translationKey();
 
+    default boolean isPortable() { return false; }
+
     /**
      * Get which fields are editable in the configurator.
      */
@@ -58,6 +60,24 @@ public interface IInfinityCell {
             tag.remove(NBTKeys.NAME);
         } else {
             tag.putString(NBTKeys.NAME, name);
+        }
+        Cell4Util.setCustomTag(stack, tag);
+    }
+
+    default String getTextureName(ItemStack stack) {
+        var tag = Cell4Util.getCustomTag(stack);
+        String value = tag.getStringOr(NBTKeys.TEXTURE, "");
+        if (!value.isEmpty()) return value;
+        return tag.getStringOr(NBTKeys.TEXTURE_ALIAS, "");
+    }
+
+    default void setTextureName(ItemStack stack, String name) {
+        var tag = Cell4Util.getCustomTag(stack);
+        tag.remove(NBTKeys.TEXTURE_ALIAS);
+        if (name == null || name.isEmpty()) {
+            tag.remove(NBTKeys.TEXTURE);
+        } else {
+            tag.putString(NBTKeys.TEXTURE, name);
         }
         Cell4Util.setCustomTag(stack, tag);
     }
@@ -86,6 +106,9 @@ public interface IInfinityCell {
         }
         for (String modId : blacklist.getModIds()) {
             tooltipAdder.accept(Component.translatable("tooltip.cell4.blacklist_modid", modId).withStyle(ChatFormatting.RED));
+        }
+        for (String pattern : blacklist.getPatterns()) {
+            tooltipAdder.accept(Component.translatable("tooltip.cell4.blacklist_pattern", pattern).withStyle(ChatFormatting.RED));
         }
     }
 

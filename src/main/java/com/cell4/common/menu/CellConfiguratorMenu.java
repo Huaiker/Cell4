@@ -15,7 +15,8 @@ import net.minecraft.world.item.ItemStack;
 
 public class CellConfiguratorMenu extends AbstractContainerMenu {
 
-    private static final int PLAYER_INV_X = 64;
+    public static final int SIDEBAR_WIDTH = 18;
+    private static final int PLAYER_INV_X = 64 + SIDEBAR_WIDTH;
     private static final int PLAYER_INV_Y = 192;
 
     private final Container cellContainer;
@@ -39,7 +40,7 @@ public class CellConfiguratorMenu extends AbstractContainerMenu {
             }
         };
 
-        this.addSlot(new Slot(this.cellContainer, 0, 8, 22) {
+        this.addSlot(new Slot(this.cellContainer, 0, 8 + SIDEBAR_WIDTH, 22) {
             @Override
             public boolean mayPlace(ItemStack stack) { return isValidCell(stack); }
             @Override
@@ -124,6 +125,11 @@ public class CellConfiguratorMenu extends AbstractContainerMenu {
 
     public static boolean canEditName(ItemStack stack) {
         if (stack.getItem() instanceof IInfinityCell cell) return cell.canEditName();
+        return false;
+    }
+
+    public static boolean canEditPower(ItemStack stack) {
+        if (stack.getItem() instanceof IInfinityCell cell) return cell.isPortable();
         return false;
     }
 

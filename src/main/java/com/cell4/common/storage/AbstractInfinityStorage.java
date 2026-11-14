@@ -6,9 +6,14 @@ import appeng.api.stacks.AEKey;
 import appeng.api.stacks.KeyCounter;
 import appeng.api.storage.cells.StorageCell;
 import appeng.api.storage.cells.CellState;
+import com.cell4.common.item.IInfinityCell;
 import com.cell4.common.util.Cell4Util;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomData;
+
+import java.util.Objects;
 
 /**
  * Abstract base class for all Infinity Storage implementations.
@@ -20,10 +25,25 @@ public abstract class AbstractInfinityStorage implements StorageCell {
 
     protected final Cell4Util.BlacklistData blacklist;
     protected final ItemStack cellItem;
+    /** 构造时的元件自定义数据快照，用于判断缓存实例是否已过期。 */
+    private final CustomData cellDataSnapshot;
 
     public AbstractInfinityStorage(ItemStack cellItem) {
         this.cellItem = cellItem;
+        this.cellDataSnapshot = cellItem.get(DataComponents.CUSTOM_DATA);
         this.blacklist = Cell4Util.getBlacklistData(cellItem);
+    }
+
+    /**
+     * 该存储实例是否仍与给定元件一致。
+     * 配置器保存时会就地修改元件 NBT，AE2 的槽位又可能复用同一个 ItemStack 实例，
+     * 因此返回缓存前必须校验快照，否则终端会一直显示旧的绑定配置。
+     */
+    public boolean matchesCell(ItemStack stack) {
+        if (stack == null || stack.isEmpty() || stack.getItem() != cellItem.getItem()) {
+            return false;
+        }
+        return Objects.equals(cellDataSnapshot, stack.get(DataComponents.CUSTOM_DATA));
     }
 
     /**
