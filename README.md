@@ -23,8 +23,6 @@ On 26.1.2, item entries support full data components, `custom_data`, and complet
 
 The **Cell Configurator** is an in-game tool for editing cell data. Right-click while holding it to open the GUI, then place a cell into the slot.
 
-![Cell Configurator Usage](AAA)
-
 ### List UI (UI1)
 
 - Editable fields change based on the cell type placed in the slot.
